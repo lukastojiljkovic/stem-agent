@@ -18,6 +18,7 @@ Thumbs.db
 .idea/
 .vscode/
 *.swp
+.claude/
 
 # Internal docs (NOT committed per project policy)
 docs/_internal/

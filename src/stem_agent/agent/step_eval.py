@@ -58,19 +58,32 @@ def evaluate_step(
         except Exception:
             q = 0.5
 
-    dr = 0.5
-    if domain and text.strip():
-        try:
-            dr = judge.score_with_rubric(
-                question=f"Is this output relevant to the {domain.upper()} domain (i.e., uses correct vocabulary, structure, and primary sources)? 0=irrelevant, 1=fully on-domain.",
-                answer=text[:3000],
-                rubric="Score domain relevance only. Ignore correctness; just judge whether the content is in-domain.",
-            ).score
-        except Exception:
-            dr = 0.5
+    # Domain-relevance proxy: keyword heuristic (avoids a second LLM call per step).
+    dr = _domain_relevance_proxy(text, domain) if domain else 0.5
 
     log_eval(f"step {index} ({tool_name}): q={q:.2f} c={cons:.2f} d={dr:.2f}")
     return q, cons, dr
+
+
+_DOMAIN_KEYWORDS: dict[str, set[str]] = {
+    "legal": {"clause", "agreement", "contract", "party", "obligation", "liability",
+              "terminate", "governing law", "indemnif", "warrant", "shall ", "hereby",
+              "jurisdiction", "force majeure", "breach", "covenant", "consent"},
+    "economics": {"revenue", "income", "ratio", "ebit", "asset", "liabilit", "cash flow",
+                  "margin", "earnings", "yield", "10-k", "fiscal", "fy20", "%", "$",
+                  "growth", "leverage", "altman", "piotroski"},
+}
+
+
+def _domain_relevance_proxy(text: str, domain: str) -> float:
+    kws = _DOMAIN_KEYWORDS.get(domain.lower(), set())
+    if not kws or not text:
+        return 0.5
+    lower = text.lower()
+    hits = sum(1 for k in kws if k in lower)
+    # 0 hits -> 0.2, 1 -> 0.45, 2 -> 0.6, 3 -> 0.7, >=4 -> 0.85
+    table = [0.20, 0.45, 0.60, 0.70, 0.80, 0.85, 0.90]
+    return table[min(hits, len(table) - 1)]
 
 
 def _stringify(value: Any) -> str:

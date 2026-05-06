@@ -36,9 +36,13 @@ We ran one deep track (Legal $\rightarrow$ Contract Analysis on a CUAD-style mic
 \begin{figure}[h]
 \centering
 \includegraphics[width=0.62\linewidth]{figures/bar_levels.pdf}
-\caption{Mean score across the held-out evaluation set per level for the latest legal-track session. \textbf{Baseline} is the spec's hand-coded \texttt{clause\_extraction} $\rightarrow$ \texttt{summarize}. \textbf{L1} is the best L1-promoted composite per capability tag. \textbf{L2} is the best L2-promoted composite (Contract Analysis) where applicable.}
+\caption{Mean CUAD clause-extraction F1 across a 3-contract held-out evaluation set, contract-analysis track. \textbf{Baseline} is the spec's hand-coded \texttt{clause\_extraction} $\rightarrow$ \texttt{summarize} (mean $0.128$). \textbf{L1} is the best L1-promoted composite per capability tag (mean $0.285$, $2.2\times$ baseline). \textbf{L2} is the best L2-promoted composite (Contract Analysis subdomain; mean $0.304$, $2.4\times$ baseline).}
 \label{fig:bars}
 \end{figure}
+
+The $2.4\times$ headline is meaningful but the per-task variance is large (eval F1 ranges from $0.056$ to $0.624$), partly because the synthetic micro-subset only contains 3 held-out contracts. The story is robust to the variance: every individual L2 score either matches or exceeds the corresponding baseline score on the same contract.
+
+\paragraph{Negative finding: the agent converged on a one-step pipeline.} The L2-promoted composite for contract analysis is, after evolution, just a single \texttt{clause\_extraction} step --- the structural mutations beam search proposed (adding \texttt{summarize}, \texttt{detect\_inconsistencies}, \texttt{rule\_matching} after it) all reduced fitness. The deterministic anchor (token-overlap F1 against gold spans) penalized the verbose summarized outputs; the simplest pipeline won. We initially expected richer composites; we got the right answer. \emph{This is the system working --- Goodhart-protection via deterministic checks kept the search honest --- but it also says the agent's value here is largely \emph{parameter discovery} on existing primitives rather than novel structure.}
 
 \subsection{Cross-session improvement}
 \begin{figure}[h]

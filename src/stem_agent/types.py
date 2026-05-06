@@ -40,11 +40,27 @@ class TypeName(str, Enum):
 
 
 _COERCIONS: dict[TypeName, set[TypeName]] = {
+    # Container/document types
     TypeName.DOCUMENTS: {TypeName.TEXT, TypeName.DOCUMENT},
     TypeName.DOCUMENT: {TypeName.TEXT},
     TypeName.CASE_DOCS: {TypeName.DOCUMENTS, TypeName.TEXT},
     TypeName.LEGAL_TEXT: {TypeName.TEXT},
     TypeName.FILING: {TypeName.STRUCTURED_DATA, TypeName.TEXT},
+    # Structured outputs that are dict-like and stringifiable
+    TypeName.CLAUSES: {TypeName.TEXT, TypeName.STRUCTURED_DATA},
+    TypeName.OBLIGATION_LIST: {TypeName.TEXT, TypeName.STRUCTURED_DATA},
+    TypeName.RULE_HITS: {TypeName.TEXT, TypeName.STRUCTURED_DATA},
+    TypeName.INDICATORS: {TypeName.TEXT, TypeName.STRUCTURED_DATA},
+    TypeName.TRENDS: {TypeName.TEXT, TypeName.STRUCTURED_DATA},
+    TypeName.CORR_MATRIX: {TypeName.TEXT, TypeName.STRUCTURED_DATA},
+    TypeName.RATIO_REPORT: {TypeName.TEXT, TypeName.STRUCTURED_DATA},
+    TypeName.ENTITIES: {TypeName.TEXT, TypeName.STRUCTURED_DATA},
+    TypeName.COMPARISON: {TypeName.TEXT, TypeName.STRUCTURED_DATA},
+    TypeName.REASONING_TRACE: {TypeName.TEXT, TypeName.STRUCTURED_DATA},
+    TypeName.EXEC_RESULT: {TypeName.TEXT, TypeName.STRUCTURED_DATA},
+    TypeName.ISSUES: {TypeName.TEXT},
+    TypeName.LABEL: {TypeName.TEXT},
+    TypeName.SCORE: {TypeName.TEXT},
 }
 
 

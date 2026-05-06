@@ -9,15 +9,41 @@ def _norm(s: str) -> str:
     return re.sub(r"\s+", " ", str(s or "").lower()).strip()
 
 
-def score_clauses_f1(predicted: dict[str, Any] | list[dict[str, Any]],
+def score_clauses_f1(predicted: Any,
                      gold: dict[str, list[str]]) -> float:
     """gold = {category: [acceptable_text_substrings]}.
-    Predicted = {clauses: [{category, text}]} or list[{category, text}].
+    Predicted = {clauses: [{category, text}]} or list[{category, text}] or
+    free text / list of strings (in which case we score against per-category gold spans via token overlap).
     Macro-F1 across categories present in gold."""
-    if isinstance(predicted, dict):
-        clauses = predicted.get("clauses") or []
-    else:
-        clauses = predicted or []
+    clauses: list[dict[str, Any]] = []
+    free_text: str | None = None
+    if isinstance(predicted, dict) and "clauses" in predicted:
+        clauses = [c for c in (predicted.get("clauses") or []) if isinstance(c, dict)]
+    elif isinstance(predicted, list):
+        clauses = [c for c in predicted if isinstance(c, dict) and "category" in c]
+        if not clauses:
+            free_text = " ".join(str(x) for x in predicted)
+    elif isinstance(predicted, str):
+        free_text = predicted
+    elif predicted is not None:
+        free_text = str(predicted)
+
+    if free_text is not None:
+        out_tokens = set(_norm(free_text).split())
+        f1s: list[float] = []
+        for cat, accept_texts in gold.items():
+            best = 0.0
+            for at in accept_texts:
+                gt = set(_norm(at).split())
+                if not out_tokens or not gt:
+                    continue
+                tp = len(out_tokens & gt)
+                if tp == 0: continue
+                prec = tp / len(out_tokens); rec = tp / len(gt)
+                f1 = 2 * prec * rec / (prec + rec)
+                if f1 > best: best = f1
+            f1s.append(best)
+        return sum(f1s) / len(f1s) if f1s else 0.0
     pred_by_cat: dict[str, str] = {}
     for c in clauses:
         cat = c.get("category","")

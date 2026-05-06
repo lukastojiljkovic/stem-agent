@@ -95,7 +95,9 @@ def html_extract(url: str, max_chars: int = 12000) -> str:
     kind=ToolKind.PRIMITIVE,
     cost=0.15,
 )
-def summarize(text: str, max_words: int = 200) -> str:
+def summarize(text: str, max_words: int | None = 200) -> str:
+    if max_words is None or not isinstance(max_words, int):
+        max_words = 200
     log_tool(f"summarize max_words={max_words}")
     if not text or not str(text).strip():
         return ""
@@ -165,9 +167,10 @@ def extract_entities(text: str) -> dict[str, list[str]]:
     kind=ToolKind.PRIMITIVE,
     cost=0.10,
 )
-def classify(text: str, labels: list[str]) -> str:
+def classify(text: str, labels: list[str] | None = None) -> str:
+    if not labels:
+        labels = ["yes","no","unclear"]
     log_tool(f"classify labels={labels}")
-    if not labels: return ""
     out = _lm().chat(
         [
             ChatMessage(role="system", content="You are a strict classifier. Output ONLY one of the provided labels."),
@@ -176,7 +179,10 @@ def classify(text: str, labels: list[str]) -> str:
         ],
         temperature=0.2, top_p=0.9, max_tokens=20,
     )
-    pick = out.text.strip().splitlines()[0].strip(' "\'.,:;')
+    raw = (out.text or "").strip()
+    if not raw:
+        return labels[0]
+    pick = raw.splitlines()[0].strip(' "\'.,:;')
     if pick not in labels:
         for L in labels:
             if L.lower() in pick.lower():

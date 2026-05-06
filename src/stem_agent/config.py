@@ -35,7 +35,7 @@ class Paths:
 class LMStudioConfig:
     base_url: str = "http://localhost:1234/v1"
     api_key: str = "lm-studio"
-    model: str = "gemma-4-e4b-it"
+    model: str = "google/gemma-4-e4b"
     temperature_default: float = 1.0
     top_p_default: float = 0.95
     top_k_default: int = 64
@@ -54,14 +54,15 @@ class JudgeConfig:
 
 @dataclass(frozen=True)
 class EvolutionConfig:
-    beam_k: int = 4
-    max_steps: int = 5
-    max_iterations: int = 8
+    # Demo-tuned for local 4B on a laptop. Bump beam_k=4 / max_iterations=8 for a longer run.
+    beam_k: int = 2
+    max_steps: int = 4
+    max_iterations: int = 2
     max_llm_calls_per_candidate: int = 30
     max_wall_time_s_per_candidate: int = 300
     cumulative_alpha: float = 0.7
     cumulative_beta: float = 0.3
-    early_term_step_min: float = 0.25
+    early_term_step_min: float = 0.20
     final_w_output: float = 0.5
     final_w_step_avg: float = 0.3
     final_w_consistency: float = 0.2
@@ -69,8 +70,10 @@ class EvolutionConfig:
     rollback_after_n_declines: int = 2
     epsilon_termination: float = 0.01
     n_iters_for_epsilon: int = 3
-    score_threshold_termination: float = 0.85
+    score_threshold_termination: float = 0.65
     promotion_min_improvement: float = 0.02
+    # Demo cap: limit how many train tasks we evolve per phase.
+    max_train_tasks_per_phase: int = 2
 
 
 def has_anthropic_key() -> bool:

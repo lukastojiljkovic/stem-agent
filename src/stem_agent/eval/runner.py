@@ -85,7 +85,9 @@ def _load_tasks(domain: str, subdomain: str | None, track: str) -> list[TaskSpec
     tasks: list[TaskSpec] = []
     if domain == "legal":
         tasks += load_cuad_tasks()
-        tasks += load_legalbench_tasks()
+        # LegalBench currently dropped from the eval set: many items have empty
+        # gold labels that make the baseline match by accident, so the metric
+        # is uninformative. Re-enable when we have a robust label normalizer.
     if domain == "economics":
         tasks += load_ratio_tasks()
         tasks += load_financebench_tasks()
@@ -131,25 +133,28 @@ def run_full(*, domain: str, subdomain: str | None, track: str, seed: int,
         (runs_dir / "domain_brief.md").write_text(brief_text, encoding="utf-8")
         log.emit("bootstrap.brief", domain=domain, sources=brief.sources, paragraphs=brief.paragraphs)
 
+    cap_per_phase = EVO.max_train_tasks_per_phase
     log_decision("=== PHASE 1: L1 specialization ===")
     l1_layer = domain
-    for t in train:
-        if t.subdomain and track == "deep" and l1_layer == "legal":
-            continue
+    l1_train = [t for t in train if not (t.subdomain and track == "deep" and l1_layer == "legal")]
+    for t in l1_train[:cap_per_phase]:
         run_phase_for_task(
             task=t, library=library, archive=archive, lm=lm, judge=judge,
             layer=l1_layer, domain_brief_text=brief_text,
             session_id=session_id,
+            deterministic_score=_scorer_for(t),
         )
 
     if track == "deep" and domain == "legal" and (subdomain == "contract_analysis" or subdomain is None):
         log_decision("=== PHASE 2: L2 (contract_analysis) ===")
-        for t in [x for x in train if x.subdomain == "contract_analysis"]:
+        l2_train = [x for x in train if x.subdomain == "contract_analysis"]
+        for t in l2_train[:cap_per_phase]:
             run_phase_for_task(
                 task=t, library=library, archive=archive, lm=lm, judge=judge,
                 layer="contract_analysis",
                 domain_brief_text=brief_text,
                 session_id=session_id,
+                deterministic_score=_scorer_for(t),
             )
 
     log_decision("=== PHASE 3: frozen evaluation ===")

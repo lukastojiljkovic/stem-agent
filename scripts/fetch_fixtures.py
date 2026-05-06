@@ -70,35 +70,79 @@ def _build_cuad_subset(n: int = 5) -> None:
 
 
 def _hand_legal_fixtures() -> None:
-    c1 = ("Master Services Agreement between Acme Co. and Beta Ltd. "
-          "This Agreement shall be governed by the laws of the State of Delaware. "
-          "Either party may terminate for convenience on 30 days written notice. "
-          "Total liability of either party shall not exceed the fees paid in the prior twelve months. "
-          "This Agreement may not be assigned by either party without the prior written consent of the other.")
-    c2 = ("Software License Agreement. Governed by the laws of England and Wales. "
-          "Customer may terminate this agreement at any time without cause upon 60 days notice. "
-          "In no event shall Vendor's aggregate liability exceed $1,000,000. "
-          "Customer shall not assign or transfer this agreement without Vendor's prior written consent.")
-    (FIX / "contracts" / "synth_msa_1.txt").write_text(c1, encoding="utf-8")
-    (FIX / "contracts" / "synth_swl_2.txt").write_text(c2, encoding="utf-8")
-    LEGAL_TASKS.extend([
-        {"kind":"cuad_clause","id":"synth_msa_1","contract":"synth_msa_1.txt",
-         "question":"Extract verbatim Governing Law, Termination for Convenience, Cap on Liability, Anti-Assignment clauses.",
-         "gold":{
-            "Governing Law":["governed by the laws of the State of Delaware"],
-            "Termination for Convenience":["terminate for convenience on 30 days written notice"],
-            "Cap on Liability":["total liability of either party shall not exceed the fees paid in the prior twelve months"],
-            "Anti-Assignment":["may not be assigned by either party without the prior written consent of the other"],
-         }},
-        {"kind":"cuad_clause","id":"synth_swl_2","contract":"synth_swl_2.txt",
-         "question":"Extract verbatim Governing Law, Termination for Convenience, Cap on Liability, Anti-Assignment clauses.",
-         "gold":{
-            "Governing Law":["laws of England and Wales"],
-            "Termination for Convenience":["terminate this agreement at any time without cause upon 60 days notice"],
-            "Cap on Liability":["aggregate liability exceed $1,000,000"],
-            "Anti-Assignment":["shall not assign or transfer this agreement without Vendor's prior written consent"],
-         }},
-    ])
+    contracts: dict[str, dict] = {
+        "synth_msa_1": {
+            "text": ("Master Services Agreement between Acme Co. and Beta Ltd. "
+                     "This Agreement shall be governed by the laws of the State of Delaware. "
+                     "Either party may terminate for convenience on 30 days written notice. "
+                     "Total liability of either party shall not exceed the fees paid in the prior twelve months. "
+                     "This Agreement may not be assigned by either party without the prior written consent of the other."),
+            "gold": {
+                "Governing Law":["governed by the laws of the State of Delaware"],
+                "Termination for Convenience":["terminate for convenience on 30 days written notice"],
+                "Cap on Liability":["total liability of either party shall not exceed the fees paid in the prior twelve months"],
+                "Anti-Assignment":["may not be assigned by either party without the prior written consent of the other"],
+            },
+        },
+        "synth_swl_2": {
+            "text": ("Software License Agreement. Governed by the laws of England and Wales. "
+                     "Customer may terminate this agreement at any time without cause upon 60 days notice. "
+                     "In no event shall Vendor's aggregate liability exceed $1,000,000. "
+                     "Customer shall not assign or transfer this agreement without Vendor's prior written consent."),
+            "gold": {
+                "Governing Law":["laws of England and Wales"],
+                "Termination for Convenience":["terminate this agreement at any time without cause upon 60 days notice"],
+                "Cap on Liability":["aggregate liability exceed $1,000,000"],
+                "Anti-Assignment":["shall not assign or transfer this agreement without Vendor's prior written consent"],
+            },
+        },
+        "synth_nda_3": {
+            "text": ("Non-Disclosure Agreement between Gamma Inc. and Delta LLC, effective March 1, 2026. "
+                     "This Agreement shall be governed by the laws of New York. "
+                     "Either party may terminate this Agreement upon ninety (90) days' written notice without cause. "
+                     "In no event shall either party's total liability exceed the aggregate fees paid hereunder during the preceding six months. "
+                     "Neither party may assign this Agreement to any third party without the prior written consent of the other."),
+            "gold": {
+                "Governing Law":["governed by the laws of New York"],
+                "Termination for Convenience":["terminate this Agreement upon ninety (90) days' written notice without cause"],
+                "Cap on Liability":["total liability exceed the aggregate fees paid hereunder during the preceding six months"],
+                "Anti-Assignment":["may not assign this Agreement to any third party without the prior written consent of the other"],
+            },
+        },
+        "synth_supply_4": {
+            "text": ("Supply Agreement, effective January 15, 2026, between Epsilon Manufacturing and Zeta Distributors. "
+                     "This Agreement shall be governed by and construed in accordance with the laws of the Commonwealth of Massachusetts. "
+                     "Buyer may terminate this Agreement for convenience upon forty-five (45) days written notice to Seller. "
+                     "Seller's total cumulative liability under this Agreement shall in no event exceed five million U.S. dollars (\\$5,000,000). "
+                     "This Agreement may not be assigned, in whole or in part, by either party without the prior written consent of the other party."),
+            "gold": {
+                "Governing Law":["governed by and construed in accordance with the laws of the Commonwealth of Massachusetts"],
+                "Termination for Convenience":["terminate this Agreement for convenience upon forty-five (45) days written notice"],
+                "Cap on Liability":["total cumulative liability under this Agreement shall in no event exceed five million U.S. dollars"],
+                "Anti-Assignment":["may not be assigned, in whole or in part, by either party without the prior written consent"],
+            },
+        },
+        "synth_consulting_5": {
+            "text": ("Consulting Agreement between Eta Advisors and Theta Holdings, effective February 10, 2026. "
+                     "This Agreement is governed by the laws of the State of California. "
+                     "Either party may terminate this Agreement at any time, with or without cause, by giving fifteen (15) days advance written notice. "
+                     "Consultant's aggregate liability shall not in any event exceed the total fees actually paid to Consultant under this Agreement. "
+                     "This Agreement and any rights or obligations hereunder may not be assigned by Consultant without Theta's prior written consent."),
+            "gold": {
+                "Governing Law":["governed by the laws of the State of California"],
+                "Termination for Convenience":["terminate this Agreement at any time, with or without cause, by giving fifteen (15) days advance written notice"],
+                "Cap on Liability":["aggregate liability shall not in any event exceed the total fees actually paid to Consultant under this Agreement"],
+                "Anti-Assignment":["may not be assigned by Consultant without Theta's prior written consent"],
+            },
+        },
+    }
+    for cid, data in contracts.items():
+        (FIX / "contracts" / f"{cid}.txt").write_text(data["text"], encoding="utf-8")
+        LEGAL_TASKS.append({
+            "kind":"cuad_clause","id":cid,"contract":f"{cid}.txt",
+            "question":"Extract verbatim Governing Law, Termination for Convenience, Cap on Liability, Anti-Assignment clauses.",
+            "gold": data["gold"],
+        })
 
 
 ECON_TASKS: list[dict] = []

@@ -195,15 +195,18 @@ def propose_seed_pipeline(
 
 
 def _fallback(layer: str, library: ToolLibrary, input_type: TypeName) -> Pipeline:
-    """Hand-coded minimum pipelines per spec section 12 baseline."""
-    if layer in ("legal", "contract_analysis"):
-        if input_type in (TypeName.DOCUMENT, TypeName.TEXT):
-            return Pipeline([PipelineStep("clause_extraction"), PipelineStep("summarize")])
-        return Pipeline([PipelineStep("web_search"), PipelineStep("summarize")])
-    if layer == "economics":
-        if input_type == TypeName.QUERY:
+    """Hand-coded minimum pipelines, gated by input_type so the result is valid."""
+    if input_type == TypeName.QUERY:
+        if layer == "economics":
             return Pipeline([PipelineStep("edgar_fetch"), PipelineStep("financial_ratios")])
-    return Pipeline([PipelineStep("web_search"), PipelineStep("summarize")])
+        return Pipeline([PipelineStep("web_search"), PipelineStep("summarize")])
+    if input_type in (TypeName.TEXT, TypeName.DOCUMENT):
+        if layer in ("legal", "contract_analysis"):
+            return Pipeline([PipelineStep("clause_extraction"), PipelineStep("summarize")])
+        return Pipeline([PipelineStep("summarize")])
+    if input_type == TypeName.FILING:
+        return Pipeline([PipelineStep("financial_ratios")])
+    return Pipeline([PipelineStep("summarize")])
 
 
 def _safe_json(text: str, default: Any) -> Any:

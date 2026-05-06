@@ -48,8 +48,12 @@ def chain_of_thought(prompt: str, hint: str | None = None) -> dict[str, Any]:
     kind=ToolKind.PRIMITIVE,
     cost=0.20,
 )
-def compare(a: str, b: str, criteria: list[str] | None = None) -> dict[str, Any]:
+def compare(a: str, b: str = "", criteria: list[str] | None = None) -> dict[str, Any]:
     log_tool("compare")
+    if not b:
+        # Pipeline executor only feeds one upstream output; without an explicit `b`,
+        # this step is a no-op self-comparison. Caller must wire `b` via params.
+        return {"summary": "no comparison target provided", "diffs": []}
     crit = criteria or ["correctness", "completeness", "specificity"]
     sys = "You compare two candidate texts. Output JSON only with keys 'summary' and 'diffs' (list)."
     user = (f"CRITERIA: {crit}\n\nTEXT_A:\n{str(a)[:3000]}\n\nTEXT_B:\n{str(b)[:3000]}\n\n"

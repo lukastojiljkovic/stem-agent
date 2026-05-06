@@ -28,7 +28,7 @@ def _load_rule_pack(name: str) -> dict[str, Any]:
 @tool(
     name="clause_extraction",
     description="Extract clauses by category (default CUAD-41 taxonomy). Returns {clauses:[{category,text,confidence}]}.",
-    input_type=TypeName.DOCUMENT,
+    input_type=TypeName.TEXT,
     output_type=TypeName.CLAUSES,
     kind=ToolKind.PRIMITIVE,
     domain="legal",
@@ -36,14 +36,17 @@ def _load_rule_pack(name: str) -> dict[str, Any]:
     capability_tag="clause_extraction",
     cost=0.30,
 )
-def clause_extraction(text: str, taxonomy: str = "CUAD41",
-                      min_conf: float = 0.4, categories: list[str] | None = None) -> dict[str, Any]:
+def clause_extraction(text: str, taxonomy: str | None = "CUAD41",
+                      min_conf: float | None = 0.4, categories: list[str] | None = None) -> dict[str, Any]:
+    # Defensive: callers (LLM seed proposer) sometimes pass None for params with defaults.
+    if taxonomy is None: taxonomy = "CUAD41"
+    if min_conf is None: min_conf = 0.4
     log_tool(f"clause_extraction taxonomy={taxonomy} min_conf={min_conf}")
     if not text or not str(text).strip():
         return {"clauses": []}
 
     if categories is None:
-        if taxonomy.upper() == "CUAD41":
+        if str(taxonomy).upper() == "CUAD41":
             pack = _load_rule_pack("cuad_taxonomy")
             categories = list(pack.get("categories") or [])[:20]
         if not categories:

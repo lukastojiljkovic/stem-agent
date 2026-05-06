@@ -12,7 +12,7 @@ _TASKS_DEFAULT = ("hearsay","proa","contract_qa")
 
 
 def load_legalbench_tasks(tasks: tuple[str, ...] = _TASKS_DEFAULT,
-                          n_per_task: int = 30) -> list[TaskSpec]:
+                          n_per_task: int = 6) -> list[TaskSpec]:
     out: list[TaskSpec] = []
     try:
         from datasets import load_dataset
