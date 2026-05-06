@@ -1,11 +1,9 @@
 """Processing primitives: PDF/HTML extraction, summarize, extract_entities, classify, normalize."""
 from __future__ import annotations
 
-import json
-import re
 from typing import Any
 
-from ..llm.lm_client import LMClient, ChatMessage
+from ..llm.lm_client import LMClient, ChatMessage, safe_json_loads
 from ..types import TypeName
 from ..ui.console import log_tool, log_warn
 from .base import tool, ToolKind
@@ -149,14 +147,9 @@ def extract_entities(text: str) -> dict[str, list[str]]:
         temperature=0.2, top_p=0.9, max_tokens=600,
         response_format=schema,
     )
-    try:
-        return json.loads(out.text)
-    except Exception:
-        m = re.search(r"\{.*\}", out.text, re.DOTALL)
-        if m:
-            try: return json.loads(m.group(0))
-            except Exception: pass
-        return {"parties": [], "dates": [], "money": [], "locations": [], "laws": []}
+    return safe_json_loads(out.text,
+                           default={"parties": [], "dates": [], "money": [],
+                                    "locations": [], "laws": []})
 
 
 @tool(

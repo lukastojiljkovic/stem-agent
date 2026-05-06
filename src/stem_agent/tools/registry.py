@@ -65,6 +65,10 @@ class ToolLibrary:
     def __contains__(self, name: str) -> bool:
         return name in self._tools or name in self.composites
 
+    def has(self, name: str) -> bool:
+        """Public membership check for primitives (composites live in `composites`)."""
+        return name in self._tools
+
     def get(self, name: str) -> Tool:
         if name in self._tools:
             return self._tools[name]

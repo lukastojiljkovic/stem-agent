@@ -7,17 +7,18 @@
 """
 from __future__ import annotations
 
-import json
-import re
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
-from ..llm.lm_client import LMClient, ChatMessage
+from ..llm.lm_client import LMClient, ChatMessage, clean_llm_query, safe_json_loads
 from ..llm.prompts import render_prompt
 from ..tools.registry import ToolLibrary
-from ..ui.console import log_decision, log_retrieve
+from ..ui.console import log_decision, log_retrieve, log_warn
 from ..types import TypeName
 from .pipeline import Pipeline, PipelineStep, validate
+
+_BOOTSTRAP_MAX_RETRIES = 2
 
 
 @dataclass
@@ -49,16 +50,15 @@ _DOMAIN_QUESTIONS: dict[str, list[str]] = {
 
 
 def bootstrap_domain_brief(domain: str, lm: LMClient,
-                           library: ToolLibrary, max_queries: int = 4,
-                           max_retries: int = 2) -> DomainBrief:
+                           library: ToolLibrary, max_queries: int = 4) -> DomainBrief:
     """Run a small bootstrapping loop: search -> summarize -> store as brief.
 
     For each domain question we try multiple key-free backends in turn (Wikipedia
     search, Semantic Scholar, OpenAlex, arXiv, plain Wikipedia lookup, web
     search). If none of them return anything for a question, we ask the LLM to
-    rewrite the query and retry once. The point is to keep the
-    "stem-cell environmental signal" mechanism working even when the agent has
-    no API keys and DDG is throttled."""
+    rewrite the query and retry (up to `_BOOTSTRAP_MAX_RETRIES`). The point is
+    to keep the "stem-cell environmental signal" mechanism working even when
+    the agent has no API keys and DDG is throttled."""
     questions = _DOMAIN_QUESTIONS.get(domain, [])[:max_queries]
     if not questions:
         return DomainBrief(domain=domain, paragraphs=[], sources=[])
@@ -70,17 +70,15 @@ def bootstrap_domain_brief(domain: str, lm: LMClient,
         log_retrieve(f"[bootstrap/{domain}] {q}")
         snippets: list[str] = []
         attempt_query = q
-        for attempt in range(max_retries + 1):
+        for attempt in range(_BOOTSTRAP_MAX_RETRIES + 1):
             new_snips, new_sources = _gather_snippets_for_query(library, attempt_query)
             snippets.extend(new_snips)
             sources.extend(new_sources)
             if snippets:
                 break
-            if attempt < max_retries:
-                # Ask the LLM to rewrite the query into something more search-friendly.
+            if attempt < _BOOTSTRAP_MAX_RETRIES:
                 try:
-                    rewritten = _rewrite_query(lm, q, attempt_query, domain,
-                                                prior_snippets_empty=True)
+                    rewritten = _rewrite_query(lm, q, attempt_query, domain)
                 except Exception:
                     rewritten = ""
                 if not rewritten or rewritten.strip().lower() == attempt_query.strip().lower():
@@ -105,13 +103,31 @@ def bootstrap_domain_brief(domain: str, lm: LMClient,
             if para:
                 paras.append(f"{q}\n{para}")
             else:
-                from ..ui.console import log_warn
                 log_warn(f"[bootstrap] LM returned empty text for question: {q!r}")
         except Exception as e:
-            from ..ui.console import log_warn
             log_warn(f"[bootstrap] LM summarize failed for question {q!r}: {e}")
 
     return DomainBrief(domain=domain, paragraphs=paras, sources=sources)
+
+
+def _list_backend_results(res: Any) -> tuple[list[str], list[dict[str, str]]]:
+    """Adapt a backend's return value to (snippets, sources). Wikipedia
+    article lookup returns a single dict with `text`/`title`/`url`; every
+    other backend returns a list of {title,url,snippet|abstract}."""
+    snips: list[str] = []
+    srcs: list[dict[str, str]] = []
+    if isinstance(res, dict) and res.get("text"):
+        snips.append(res["text"][:1000])
+        if res.get("url"):
+            srcs.append({"title": res.get("title", ""), "url": res.get("url", "")})
+    elif isinstance(res, list):
+        for d in res[:3]:
+            snippet = (d.get("snippet") or d.get("abstract") or "")[:800]
+            if snippet:
+                snips.append(snippet)
+            if d.get("url"):
+                srcs.append({"title": d.get("title", ""), "url": d.get("url", "")})
+    return snips, srcs
 
 
 def _gather_snippets_for_query(library: ToolLibrary, query: str
@@ -119,70 +135,59 @@ def _gather_snippets_for_query(library: ToolLibrary, query: str
     """Try several key-free retrieval primitives in turn for one query.
     Returns (snippets, sources). Each primitive has its own cache so retries
     are cheap once a backend has answered."""
-    snippets: list[str] = []
-    sources: list[dict[str, str]] = []
-
-    def get(name: str):
-        return library.get(name).run if name in library._tools else None
+    def get_runner(name: str) -> Callable[..., Any] | None:
+        try:
+            return library.get(name).run
+        except KeyError:
+            return None
 
     # Order: Wikipedia search (full-text, fast) -> Semantic Scholar -> OpenAlex
     # -> arxiv -> Wikipedia lookup -> web (Tavily/DDG, may be empty without keys).
-    backends: list[tuple[str, Any, dict[str, Any]]] = [
-        ("wikipedia_search", get("wikipedia_search"), {"query": query, "k": 3}),
-        ("semantic_scholar_search", get("semantic_scholar_search"), {"query": query, "k": 3}),
-        ("openalex_search", get("openalex_search"), {"query": query, "k": 3}),
-        ("arxiv_search", get("arxiv_search"), {"query": query, "k": 2}),
-        ("wikipedia_lookup", get("wikipedia_lookup"), {"title": query.rstrip("?").split(" in ")[-1]}),
-        ("web_search", get("web_search"), {"query": query, "k": 3}),
+    backends: list[tuple[Callable[..., Any] | None, dict[str, Any]]] = [
+        (get_runner("wikipedia_search"), {"query": query, "k": 3}),
+        (get_runner("semantic_scholar_search"), {"query": query, "k": 3}),
+        (get_runner("openalex_search"), {"query": query, "k": 3}),
+        (get_runner("arxiv_search"), {"query": query, "k": 2}),
+        (get_runner("wikipedia_lookup"), {"title": query.rstrip("?").split(" in ")[-1]}),
+        (get_runner("web_search"), {"query": query, "k": 3}),
     ]
-    for name, fn, kwargs in backends:
+    snippets: list[str] = []
+    sources: list[dict[str, str]] = []
+    for fn, kwargs in backends:
         if fn is None:
             continue
         try:
             res = fn(**kwargs)
         except Exception:
             continue
-
-        if name == "wikipedia_lookup":
-            if res and res.get("text"):
-                snippets.append(res["text"][:1000])
-                if res.get("url"):
-                    sources.append({"title": res.get("title",""), "url": res.get("url","")})
-        elif isinstance(res, list):
-            for d in res[:3]:
-                snippet = (d.get("snippet") or d.get("abstract") or "")[:800]
-                if snippet:
-                    snippets.append(snippet)
-                if d.get("url"):
-                    sources.append({"title": d.get("title",""), "url": d.get("url","")})
+        new_snips, new_srcs = _list_backend_results(res)
+        snippets.extend(new_snips)
+        sources.extend(new_srcs)
         if snippets:
             # First backend that yielded text is good enough; stop early.
             break
     return snippets, sources
 
 
-def _rewrite_query(lm: LMClient, original_question: str, last_query: str,
-                   domain: str, prior_snippets_empty: bool) -> str:
-    """Ask the LLM to produce a more search-engine-friendly query."""
+def _rewrite_query(lm: LMClient, original_question: str, last_query: str, domain: str) -> str:
+    """Ask the LLM to produce a more search-engine-friendly query.
+    Called only after all backends returned empty for `last_query`."""
     sys = ("You rewrite research questions into short, high-recall search-engine "
            "queries. Output ONLY the rewritten query, no quotes, no explanation, "
            "<= 12 words.")
-    note = ("All prior backends returned nothing for the query below; produce a "
-            "different phrasing that's more likely to retrieve results."
-            ) if prior_snippets_empty else ""
     user = (
         f"DOMAIN: {domain}\n"
         f"ORIGINAL QUESTION: {original_question}\n"
         f"LAST TRIED QUERY: {last_query}\n"
-        f"{note}"
+        "All prior backends returned nothing for the query above; produce a "
+        "different phrasing that's more likely to retrieve results."
     )
     out = lm.chat(
         [ChatMessage(role="system", content=sys),
          ChatMessage(role="user", content=user)],
         temperature=0.5, top_p=0.9, max_tokens=64,
     )
-    txt = (out.text or "").strip().strip('"\'').splitlines()[0] if (out.text or "").strip() else ""
-    return txt.rstrip(".?!,:;").strip()
+    return clean_llm_query(out.text, max_words=12)
 
 
 def render_brief(brief: DomainBrief) -> str:
@@ -271,7 +276,7 @@ def propose_seed_pipeline(
              ChatMessage(role="user", content=user)],
             temperature=0.4, top_p=0.9, max_tokens=900, response_format=schema, thinking=True,
         )
-        proposal = _safe_json(out.text, default={"steps":[]})
+        proposal = safe_json_loads(out.text, default={"steps":[]})
     except Exception:
         proposal = {"steps": []}
 
@@ -314,13 +319,3 @@ def _fallback(layer: str, library: ToolLibrary, input_type: TypeName,
     if input_type == TypeName.FILING:
         return Pipeline([PipelineStep("financial_ratios")])
     return Pipeline([PipelineStep("summarize")])
-
-
-def _safe_json(text: str, default: Any) -> Any:
-    try: return json.loads(text)
-    except Exception:
-        m = re.search(r"\{.*\}", text, re.DOTALL)
-        if m:
-            try: return json.loads(m.group(0))
-            except Exception: pass
-        return default

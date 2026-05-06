@@ -1,11 +1,9 @@
 """Reasoning primitives that wrap LLM calls into typed tools."""
 from __future__ import annotations
 
-import json
-import re
 from typing import Any
 
-from ..llm.lm_client import LMClient, ChatMessage
+from ..llm.lm_client import LMClient, ChatMessage, safe_json_loads
 from ..types import TypeName
 from ..ui.console import log_tool
 from .base import tool, ToolKind
@@ -37,7 +35,7 @@ def chain_of_thought(prompt: str, hint: str | None = None) -> dict[str, Any]:
          ChatMessage(role="user", content=user)],
         temperature=0.4, top_p=0.9, max_tokens=900, thinking=True,
     )
-    return _safe_json(out.text, default={"steps": [], "final": out.text.strip()[:500]})
+    return safe_json_loads(out.text, default={"steps": [], "final": out.text.strip()[:500]})
 
 
 @tool(
@@ -63,7 +61,7 @@ def compare(a: str, b: str = "", criteria: list[str] | None = None) -> dict[str,
          ChatMessage(role="user", content=user)],
         temperature=0.3, top_p=0.9, max_tokens=700,
     )
-    return _safe_json(out.text, default={"summary": out.text[:200], "diffs": []})
+    return safe_json_loads(out.text, default={"summary": out.text[:200], "diffs": []})
 
 
 @tool(
@@ -96,16 +94,5 @@ def detect_inconsistencies(text: str) -> list[str]:
         temperature=0.2, top_p=0.9, max_tokens=600,
         response_format=schema,
     )
-    obj = _safe_json(out.text, default={"issues": []})
+    obj = safe_json_loads(out.text, default={"issues": []})
     return list(obj.get("issues") or [])
-
-
-def _safe_json(text: str, default: Any) -> Any:
-    try:
-        return json.loads(text)
-    except Exception:
-        m = re.search(r"\{.*\}", text, re.DOTALL)
-        if m:
-            try: return json.loads(m.group(0))
-            except Exception: pass
-        return default

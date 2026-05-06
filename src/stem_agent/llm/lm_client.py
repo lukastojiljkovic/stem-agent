@@ -7,10 +7,12 @@ Defaults to Gemma 4 E4B sampling parameters. Provides:
   - safe max_tokens cap (8192) below LM Studio's documented silent cap
   - retry with exponential backoff on transient errors
   - optional `<|think|>` thinking-mode prefix on the system message
+  - `safe_json_loads()` shared helper for tools that ask the LLM for JSON
 """
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass, field
 from typing import Any, Iterable
 
@@ -137,3 +139,42 @@ class LMClient:
         if m.tool_call_id:
             d["tool_call_id"] = m.tool_call_id
         return d
+
+
+_JSON_OBJECT_RE = re.compile(r"\{.*\}", re.DOTALL)
+
+
+def safe_json_loads(text: str, default: Any = None) -> Any:
+    """Best-effort JSON parse for LLM outputs that may include prose around the
+    JSON object. First tries the whole string; if that fails, extracts the
+    first balanced-looking ``{...}`` substring and parses that. Returns
+    ``default`` if neither parse succeeds."""
+    try:
+        return json.loads(text)
+    except Exception:
+        m = _JSON_OBJECT_RE.search(text or "")
+        if m:
+            try:
+                return json.loads(m.group(0))
+            except Exception:
+                pass
+        return default
+
+
+def clean_llm_query(text: str, max_words: int | None = None) -> str:
+    """Normalize an LLM-emitted single-line query: take only the first non-empty
+    line, strip surrounding quotes from that line, drop trailing punctuation,
+    and (if `max_words` given) truncate to that many words."""
+    if not text:
+        return ""
+    for line in text.splitlines():
+        candidate = line.strip().strip('"\'').strip()
+        if not candidate:
+            continue
+        candidate = candidate.rstrip(".?!,:;").strip().strip('"\'').strip()
+        if max_words is not None and max_words > 0:
+            words = candidate.split()
+            if len(words) > max_words:
+                candidate = " ".join(words[:max_words])
+        return candidate
+    return ""

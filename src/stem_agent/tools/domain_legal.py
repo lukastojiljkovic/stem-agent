@@ -2,11 +2,10 @@
 from __future__ import annotations
 
 import json
-import re
 from typing import Any
 
 from ..config import PATHS
-from ..llm.lm_client import LMClient, ChatMessage
+from ..llm.lm_client import LMClient, ChatMessage, safe_json_loads
 from ..types import TypeName
 from ..ui.console import log_tool
 from .base import tool, ToolKind
@@ -81,7 +80,7 @@ def clause_extraction(text: str, taxonomy: str | None = "CUAD41",
         [ChatMessage(role="system", content=sys), ChatMessage(role="user", content=user)],
         temperature=0.2, top_p=0.9, max_tokens=1200, response_format=schema,
     )
-    obj = _safe_json(out.text, default={"clauses": []})
+    obj = safe_json_loads(out.text, default={"clauses": []})
     obj["clauses"] = [c for c in obj.get("clauses",[]) if float(c.get("confidence",0)) >= min_conf]
     return obj
 
@@ -126,7 +125,7 @@ def obligation_detection(text: str) -> list[dict[str, Any]]:
         [ChatMessage(role="system", content=sys), ChatMessage(role="user", content=str(text)[:8000])],
         temperature=0.2, top_p=0.9, max_tokens=1000, response_format=schema,
     )
-    obj = _safe_json(out.text, default={"obligations": []})
+    obj = safe_json_loads(out.text, default={"obligations": []})
     return list(obj.get("obligations") or [])
 
 
@@ -175,15 +174,5 @@ def rule_matching(text: str, rule_pack: str = "gdpr_art5") -> list[dict[str, Any
         [ChatMessage(role="system", content=sys), ChatMessage(role="user", content=user)],
         temperature=0.2, top_p=0.9, max_tokens=900, response_format=schema,
     )
-    obj = _safe_json(out.text, default={"hits": []})
+    obj = safe_json_loads(out.text, default={"hits": []})
     return list(obj.get("hits") or [])
-
-
-def _safe_json(text: str, default: Any) -> Any:
-    try: return json.loads(text)
-    except Exception:
-        m = re.search(r"\{.*\}", text, re.DOTALL)
-        if m:
-            try: return json.loads(m.group(0))
-            except Exception: pass
-        return default

@@ -24,11 +24,30 @@ from __future__ import annotations
 import os
 from typing import Any
 
+import requests
+
 from ..config import has_tavily_key, has_fred_key, has_courtlistener_key
+from ..llm.lm_client import LMClient, ChatMessage, clean_llm_query
 from ..types import TypeName
 from ..ui.console import log_retrieve, log_warn
 from ._cache import JsonCache
 from .base import tool, ToolKind
+
+# Module-level lazy singleton for the LM client (mirrors processing.py / reasoning.py).
+_LM: LMClient | None = None
+
+
+def _lm() -> LMClient:
+    global _LM
+    if _LM is None:
+        _LM = LMClient()
+    return _LM
+
+
+# Shared HTTP session: reuses TCP+TLS connections across calls. Gives every
+# key-free retrieval primitive a polite User-Agent without each tool repeating it.
+_SESSION = requests.Session()
+_SESSION.headers.update({"User-Agent": "stem-agent/0.1 (research; mailto:noreply@example.com)"})
 
 WEB_CACHE = JsonCache("web", ttl_s=24 * 3600)
 WIKI_CACHE = JsonCache("wiki", ttl_s=7 * 24 * 3600)
@@ -268,10 +287,9 @@ def courtlistener_search(query: str, k: int = 5) -> dict[str, Any]:
         out["error"] = "COURTLISTENER_TOKEN not set"
         return out
     try:
-        import requests
         headers = {"Authorization": f"Token {os.environ['COURTLISTENER_TOKEN']}"}
         url = "https://www.courtlistener.com/api/rest/v4/search/"
-        r = requests.get(url, params={"q": query, "type": "o", "page_size": k}, headers=headers, timeout=20)
+        r = _SESSION.get(url, params={"q": query, "type": "o", "page_size": k}, headers=headers, timeout=20)
         if r.status_code == 200:
             data = r.json().get("results", [])[:k]
             for item in data:
@@ -309,11 +327,10 @@ def eurlex_lookup(celex_or_query: str) -> dict[str, Any]:
     log_retrieve(f"EUR-Lex {celex_or_query!r}")
     out: dict[str, Any] = {"celex": "", "title": "", "full_text": ""}
     try:
-        import requests
         if celex_or_query.upper().startswith(("3", "5", "6", "1", "2")) and len(celex_or_query) >= 8:
             celex = celex_or_query
             url = f"https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:{celex}"
-            r = requests.get(url, timeout=20, headers={"User-Agent": "stem-agent/0.1"})
+            r = _SESSION.get(url, timeout=20)
             if r.status_code == 200:
                 from bs4 import BeautifulSoup
                 soup = BeautifulSoup(r.text, "lxml")
@@ -323,10 +340,10 @@ def eurlex_lookup(celex_or_query: str) -> dict[str, Any]:
                 main = soup.select_one("#TexteOnly") or soup.select_one("#text") or soup
                 out["full_text"] = main.get_text(" ", strip=True)[:15000]
         else:
-            r = requests.get(
+            r = _SESSION.get(
                 "https://eur-lex.europa.eu/search.html",
                 params={"text": celex_or_query, "qid": ""},
-                timeout=20, headers={"User-Agent": "stem-agent/0.1"},
+                timeout=20,
             )
             out["title"] = "(search results page; agent should follow links)"
             out["full_text"] = (r.text or "")[:6000]
@@ -358,14 +375,12 @@ def wikipedia_search(query: str, k: int = 5, lang: str = "en") -> list[dict[str,
     log_retrieve(f"wiki_search k={k}: {query!r}")
     out: list[dict[str, Any]] = []
     try:
-        import requests
         url = f"https://{lang}.wikipedia.org/w/api.php"
         params = {
             "action": "query", "list": "search", "srsearch": query,
             "srlimit": str(k), "format": "json", "utf8": "1",
         }
-        r = requests.get(url, params=params, timeout=15,
-                         headers={"User-Agent": "stem-agent/0.1 (research)"})
+        r = _SESSION.get(url, params=params, timeout=15)
         if r.status_code == 200:
             data = r.json().get("query", {}).get("search", [])
             for item in data[:k]:
@@ -399,14 +414,12 @@ def semantic_scholar_search(query: str, k: int = 5) -> list[dict[str, Any]]:
     log_retrieve(f"semantic_scholar k={k}: {query!r}")
     out: list[dict[str, Any]] = []
     try:
-        import requests
         url = "https://api.semanticscholar.org/graph/v1/paper/search"
         params = {
             "query": query, "limit": str(k),
             "fields": "title,abstract,year,authors,url,venue,externalIds",
         }
-        r = requests.get(url, params=params, timeout=20,
-                         headers={"User-Agent": "stem-agent/0.1"})
+        r = _SESSION.get(url, params=params, timeout=20)
         if r.status_code == 200:
             for item in (r.json().get("data") or [])[:k]:
                 out.append({
@@ -449,11 +462,9 @@ def openalex_search(query: str, k: int = 5) -> list[dict[str, Any]]:
     log_retrieve(f"openalex k={k}: {query!r}")
     out: list[dict[str, Any]] = []
     try:
-        import requests
         url = "https://api.openalex.org/works"
         params = {"search": query, "per-page": str(k)}
-        r = requests.get(url, params=params, timeout=20,
-                         headers={"User-Agent": "stem-agent/0.1 (mailto:noreply@example.com)"})
+        r = _SESSION.get(url, params=params, timeout=20)
         if r.status_code == 200:
             for w in (r.json().get("results") or [])[:k]:
                 # OpenAlex returns abstract as an inverted index; reconstruct it.
@@ -507,7 +518,6 @@ def extract_search_query(text: str, intent: str | None = None,
     """Produce a focused, keyword-style query that captures the essence of `text`.
     Optional `intent` hint biases toward a domain (e.g. "legal precedents on",
     "financial ratios for")."""
-    from ..llm.lm_client import LMClient, ChatMessage
     if not isinstance(max_words, int) or max_words <= 0:
         max_words = 12
     payload = {"t": (text or "")[:2000], "i": intent or "", "n": max_words}
@@ -524,18 +534,12 @@ def extract_search_query(text: str, intent: str | None = None,
            "Output ONLY the query, nothing else.")
     user = (f"INTENT: {intent}\n\n" if intent else "") + f"TEXT:\n{str(text)[:2000]}"
     try:
-        client = LMClient()
-        out = client.chat(
+        out = _lm().chat(
             [ChatMessage(role="system", content=sys),
              ChatMessage(role="user", content=user)],
             temperature=0.3, top_p=0.9, max_tokens=64,
         )
-        q = (out.text or "").strip().strip('"\'').splitlines()[0] if (out.text or "").strip() else ""
-        # Strip trailing punctuation; cap word count.
-        q = q.rstrip(".?!,:;").strip()
-        words = q.split()
-        if len(words) > max_words:
-            q = " ".join(words[:max_words])
+        q = clean_llm_query(out.text, max_words=max_words)
     except Exception as e:
         log_warn(f"extract_search_query failed: {e}")
         q = " ".join((text or "").split()[:max_words])
