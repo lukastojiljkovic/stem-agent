@@ -1,0 +1,47 @@
+"""Tests for the MAP-Elites archive used to gate composite-tool promotion."""
+import pytest
+
+from stem_agent.tools.archive import MAPElitesArchive
+
+
+def _comp(cid: str, domain: str, cap: str, score: float, parent: str | None = None):
+    return {
+        "id": cid,
+        "domain": domain,
+        "capability_tag": cap,
+        "metrics_history": [{"f1": score, "step_avg": score}],
+        "lineage_parent_ids": [parent] if parent else [],
+    }
+
+
+def test_first_in_cell_is_accepted_as_novel():
+    arc = MAPElitesArchive()
+    c = _comp("a1", "legal", "clause_extraction", 0.5)
+    decision = arc.evaluate_for_promotion(c, parent_score=0.0, score=0.5)
+    assert decision.accepted is True
+    assert decision.reason == "novel_cell"
+
+
+def test_dominated_candidate_is_rejected():
+    arc = MAPElitesArchive()
+    arc.evaluate_for_promotion(
+        _comp("a1", "legal", "clause_extraction", 0.7), parent_score=0.0, score=0.7
+    )
+    decision = arc.evaluate_for_promotion(
+        _comp("a2", "legal", "clause_extraction", 0.5), parent_score=0.7, score=0.5,
+    )
+    assert decision.accepted is False
+    assert decision.reason in ("dominated", "no_improvement")
+
+
+def test_strict_pareto_dominator_replaces_cell_occupant():
+    arc = MAPElitesArchive()
+    arc.evaluate_for_promotion(
+        _comp("a1", "legal", "clause_extraction", 0.5), parent_score=0.0, score=0.5
+    )
+    decision = arc.evaluate_for_promotion(
+        _comp("a2", "legal", "clause_extraction", 0.7, parent="a1"),
+        parent_score=0.5, score=0.7
+    )
+    assert decision.accepted is True
+    assert decision.replaced == "a1"
