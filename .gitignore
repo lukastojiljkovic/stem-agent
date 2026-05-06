@@ -1,0 +1,52 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+
+# Internal docs (NOT committed per project policy)
+docs/_internal/
+
+# Run artifacts
+runs/
+*.log
+*.aux
+*.fdb_latexmk
+*.fls
+*.synctex.gz
+*.toc
+*.out
+*.bbl
+*.blg
+
+# Cache directories the agent uses
+.cache/
+.tavily_cache/
+.edgar_cache/
+.fred_cache/
+
+# Environment
+.env
+.env.local
+
+# Large data fixtures cached from APIs (regenerable)
+data/fixtures/contracts/*.pdf
+data/fixtures/filings/*.txt
+data/fixtures/filings/*.json
+!data/fixtures/contracts/.gitkeep
+!data/fixtures/filings/.gitkeep

@@ -1,0 +1,65 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "stem-agent"
+version = "0.1.0"
+description = "A stem agent that differentiates into domain-specialized agents by composing typed tool pipelines."
+readme = "README.md"
+requires-python = ">=3.12"
+license = {text = "Apache-2.0"}
+authors = [{name = "Luka Stojiljkovic"}]
+keywords = ["llm", "agent", "tool-use", "self-improvement", "evolutionary-search"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+    "openai>=1.50",
+    "anthropic>=0.40",
+    "rich>=13.7",
+    "colorama>=0.4.6",
+    "pydantic>=2.7",
+    "tenacity>=9.0",
+    "tavily-python>=0.5",
+    "ddgs>=6.0",
+    "wikipedia-api>=0.6",
+    "arxiv>=2.1",
+    "fredapi>=0.5.2",
+    "edgartools>=2.5",
+    "yfinance>=0.2.40",
+    "SPARQLWrapper>=2.0",
+    "trafilatura>=1.12",
+    "pymupdf>=1.24",
+    "pdfplumber>=0.11",
+    "beautifulsoup4>=4.12",
+    "lxml>=5.0",
+    "pandas>=2.2",
+    "numpy>=1.26",
+    "matplotlib>=3.9",
+    "scikit-learn>=1.5",
+    "sentence-transformers>=3.0",
+    "RestrictedPython>=7.4",
+    "language-tool-python>=2.8",
+    "datasets>=3.0",
+    "pyyaml>=6.0",
+    "requests>=2.32",
+]
+
+[project.optional-dependencies]
+dashboard = ["streamlit>=1.40", "graphviz>=0.20"]
+dev = ["pytest>=8.3", "pytest-cov>=5.0", "ruff>=0.6"]
+
+[project.scripts]
+stem-agent = "stem_agent.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v --tb=short"
