@@ -1,0 +1,4 @@
+{"kind": "ratios", "id": "ratios_aapl_fy2024", "ticker": "AAPL", "form": "10-K", "year": 2024, "gold_ratios": {"current_ratio": 0.87, "debt_equity": 1.87, "roa": 0.27, "roe": 1.65, "operating_margin": 0.31}}
+{"kind": "ratios", "id": "ratios_msft_fy2024", "ticker": "MSFT", "form": "10-K", "year": 2024, "gold_ratios": {"current_ratio": 1.27, "debt_equity": 0.3, "roa": 0.17, "roe": 0.37, "operating_margin": 0.45}}
+{"kind": "fin_qa", "id": "finqa_aapl_revenue_fy2024", "ticker": "AAPL", "form": "10-K", "year": 2024, "question": "What was Apple's total net sales (revenue) for fiscal year 2024?", "gold_answer": "approximately $391 billion"}
+{"kind": "fin_qa", "id": "finqa_msft_revenue_fy2024", "ticker": "MSFT", "form": "10-K", "year": 2024, "question": "What was Microsoft's total revenue for fiscal year 2024?", "gold_answer": "approximately $245 billion"}

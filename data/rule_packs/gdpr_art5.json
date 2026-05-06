@@ -1,0 +1,26 @@
+{
+  "name": "gdpr_art5",
+  "rules": [
+    {"id":"art5-1a-lawfulness", "principle":"Lawfulness, fairness, transparency",
+     "description":"Personal data shall be processed lawfully, fairly and in a transparent manner.",
+     "triggers":["consent","contract","legitimate interest","transparency","privacy notice"]},
+    {"id":"art5-1b-purpose-limitation", "principle":"Purpose limitation",
+     "description":"Collected for specified, explicit and legitimate purposes; not further processed in incompatible ways.",
+     "triggers":["repurpose","secondary use","change of purpose","new purpose"]},
+    {"id":"art5-1c-data-minimisation", "principle":"Data minimisation",
+     "description":"Adequate, relevant and limited to what is necessary.",
+     "triggers":["excessive","unnecessary","collected more","over-collect"]},
+    {"id":"art5-1d-accuracy", "principle":"Accuracy",
+     "description":"Accurate and, where necessary, kept up to date.",
+     "triggers":["outdated","incorrect","stale","unverified"]},
+    {"id":"art5-1e-storage-limitation", "principle":"Storage limitation",
+     "description":"Kept for no longer than necessary.",
+     "triggers":["retention","kept indefinitely","no deletion","archive forever"]},
+    {"id":"art5-1f-integrity-confidentiality", "principle":"Integrity and confidentiality",
+     "description":"Protected against unauthorised or unlawful processing and against accidental loss.",
+     "triggers":["breach","unencrypted","leak","exposure","unauthorized access"]},
+    {"id":"art5-2-accountability", "principle":"Accountability",
+     "description":"The controller is responsible for and able to demonstrate compliance with the principles.",
+     "triggers":["no records","no DPIA","no register","unable to demonstrate"]}
+  ]
+}

@@ -21,7 +21,7 @@ def load_legalbench_tasks(tasks: tuple[str, ...] = _TASKS_DEFAULT,
     os.environ.setdefault("HF_DATASETS_CACHE", str(Path(".cache") / "hf_datasets"))
     for tname in tasks:
         try:
-            ds = load_dataset("nguha/legalbench", tname, split="test", trust_remote_code=True)
+            ds = load_dataset("nguha/legalbench", tname, split="test")
         except Exception:
             continue
         for i, row in enumerate(ds):

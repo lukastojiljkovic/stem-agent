@@ -1,0 +1,13 @@
+{
+  "name": "financial_ratios_card",
+  "ratios": [
+    {"id":"current_ratio","formula":"current_assets / current_liabilities","interpretation":"Liquidity; >1 healthy short-term coverage."},
+    {"id":"quick_ratio","formula":"(current_assets - inventory) / current_liabilities","interpretation":"Stricter liquidity excluding inventory."},
+    {"id":"debt_equity","formula":"total_liabilities / stockholders_equity","interpretation":"Leverage; >1 indicates more debt than equity."},
+    {"id":"roa","formula":"net_income / total_assets","interpretation":"Return on assets; profitability per asset dollar."},
+    {"id":"roe","formula":"net_income / stockholders_equity","interpretation":"Return on equity."},
+    {"id":"operating_margin","formula":"operating_income / revenue","interpretation":"Core operating profitability."},
+    {"id":"altman_z","formula":"3.25 + 6.56*X1 + 3.26*X2 + 6.72*X3 + 1.05*X4 (public-firm Z'')","interpretation":"<1.1 distress, 1.1-2.6 grey, >2.6 safe."},
+    {"id":"piotroski_f","formula":"sum of 9 binary fundamental signals","interpretation":">=7 strong; <=3 weak. Partial in our 1-period setting."}
+  ]
+}
