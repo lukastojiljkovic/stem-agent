@@ -1,0 +1,618 @@
+[
+  {
+    "name": "web_search",
+    "description": "General web search. Returns a list of {title,url,snippet}. Tavily preferred, DDG fallback.",
+    "input_type": "Query",
+    "output_type": "Documents",
+    "kind": "primitive",
+    "domain": null,
+    "subdomain": null,
+    "capability_tag": null,
+    "parameters_schema": {
+      "query": {
+        "type": "str",
+        "required": true,
+        "default": null
+      },
+      "k": {
+        "type": "int",
+        "required": false,
+        "default": 5
+      }
+    },
+    "cost": 0.1
+  },
+  {
+    "name": "wikipedia_lookup",
+    "description": "Fetch the lead section of a Wikipedia article. Returns {title,url,text}.",
+    "input_type": "Query",
+    "output_type": "Document",
+    "kind": "primitive",
+    "domain": null,
+    "subdomain": null,
+    "capability_tag": null,
+    "parameters_schema": {
+      "title": {
+        "type": "str",
+        "required": true,
+        "default": null
+      },
+      "lang": {
+        "type": "str",
+        "required": false,
+        "default": "en"
+      },
+      "max_chars": {
+        "type": "int",
+        "required": false,
+        "default": 4000
+      }
+    },
+    "cost": 0.05
+  },
+  {
+    "name": "arxiv_search",
+    "description": "Search arXiv. Returns list of {title,authors,abstract,url,published}.",
+    "input_type": "Query",
+    "output_type": "Documents",
+    "kind": "primitive",
+    "domain": null,
+    "subdomain": null,
+    "capability_tag": null,
+    "parameters_schema": {
+      "query": {
+        "type": "str",
+        "required": true,
+        "default": null
+      },
+      "k": {
+        "type": "int",
+        "required": false,
+        "default": 3
+      }
+    },
+    "cost": 0.1
+  },
+  {
+    "name": "fred_query",
+    "description": "Fetch a FRED time series. Returns {series_id, dates, values, freq}.",
+    "input_type": "Query",
+    "output_type": "TimeSeries",
+    "kind": "primitive",
+    "domain": "economics",
+    "subdomain": null,
+    "capability_tag": null,
+    "parameters_schema": {
+      "series_id": {
+        "type": "str",
+        "required": true,
+        "default": null
+      },
+      "observation_start": {
+        "type": "str | None",
+        "required": false,
+        "default": null
+      },
+      "observation_end": {
+        "type": "str | None",
+        "required": false,
+        "default": null
+      }
+    },
+    "cost": 0.05
+  },
+  {
+    "name": "edgar_fetch",
+    "description": "Fetch a SEC filing by ticker+form+year. Returns {ticker, form, accession, text, xbrl_facts}.",
+    "input_type": "Query",
+    "output_type": "Filing",
+    "kind": "primitive",
+    "domain": "economics",
+    "subdomain": null,
+    "capability_tag": null,
+    "parameters_schema": {
+      "ticker": {
+        "type": "str",
+        "required": true,
+        "default": null
+      },
+      "form": {
+        "type": "str",
+        "required": false,
+        "default": "10-K"
+      },
+      "year": {
+        "type": "int | None",
+        "required": false,
+        "default": null
+      }
+    },
+    "cost": 0.2
+  },
+  {
+    "name": "courtlistener_search",
+    "description": "Free-text search over US case-law via CourtListener. Returns {results:[{caseName,absolute_url,plain_text}]}.",
+    "input_type": "Query",
+    "output_type": "CaseDocs",
+    "kind": "primitive",
+    "domain": "legal",
+    "subdomain": null,
+    "capability_tag": null,
+    "parameters_schema": {
+      "query": {
+        "type": "str",
+        "required": true,
+        "default": null
+      },
+      "k": {
+        "type": "int",
+        "required": false,
+        "default": 5
+      }
+    },
+    "cost": 0.2
+  },
+  {
+    "name": "eurlex_lookup",
+    "description": "Look up a CELEX id (or free text) on EUR-Lex via CELLAR SPARQL. Returns {celex,title,full_text}.",
+    "input_type": "Query",
+    "output_type": "LegalText",
+    "kind": "primitive",
+    "domain": "legal",
+    "subdomain": null,
+    "capability_tag": null,
+    "parameters_schema": {
+      "celex_or_query": {
+        "type": "str",
+        "required": true,
+        "default": null
+      }
+    },
+    "cost": 0.2
+  },
+  {
+    "name": "pdf_extract",
+    "description": "Extract plaintext from a PDF (path or bytes). Pymupdf primary, pdfplumber fallback.",
+    "input_type": "Document",
+    "output_type": "Text",
+    "kind": "primitive",
+    "domain": null,
+    "subdomain": null,
+    "capability_tag": null,
+    "parameters_schema": {
+      "path": {
+        "type": "str | None",
+        "required": false,
+        "default": null
+      },
+      "bytes_b64": {
+        "type": "str | None",
+        "required": false,
+        "default": null
+      },
+      "max_chars": {
+        "type": "int",
+        "required": false,
+        "default": 30000
+      }
+    },
+    "cost": 0.05
+  },
+  {
+    "name": "html_extract",
+    "description": "Fetch a URL and return main-content text via trafilatura.",
+    "input_type": "Query",
+    "output_type": "Text",
+    "kind": "primitive",
+    "domain": null,
+    "subdomain": null,
+    "capability_tag": null,
+    "parameters_schema": {
+      "url": {
+        "type": "str",
+        "required": true,
+        "default": null
+      },
+      "max_chars": {
+        "type": "int",
+        "required": false,
+        "default": 12000
+      }
+    },
+    "cost": 0.05
+  },
+  {
+    "name": "summarize",
+    "description": "LLM summarize text into bullet points. Returns plain text.",
+    "input_type": "Text",
+    "output_type": "Text",
+    "kind": "primitive",
+    "domain": null,
+    "subdomain": null,
+    "capability_tag": null,
+    "parameters_schema": {
+      "text": {
+        "type": "str",
+        "required": true,
+        "default": null
+      },
+      "max_words": {
+        "type": "int | None",
+        "required": false,
+        "default": 200
+      }
+    },
+    "cost": 0.15
+  },
+  {
+    "name": "extract_entities",
+    "description": "Extract named entities (parties, dates, money, locations, laws). Returns dict of lists.",
+    "input_type": "Text",
+    "output_type": "Entities",
+    "kind": "primitive",
+    "domain": null,
+    "subdomain": null,
+    "capability_tag": null,
+    "parameters_schema": {
+      "text": {
+        "type": "str",
+        "required": true,
+        "default": null
+      }
+    },
+    "cost": 0.15
+  },
+  {
+    "name": "classify",
+    "description": "Multi-label classify text against a provided label list. Returns the chosen label string.",
+    "input_type": "Text",
+    "output_type": "Label",
+    "kind": "primitive",
+    "domain": null,
+    "subdomain": null,
+    "capability_tag": null,
+    "parameters_schema": {
+      "text": {
+        "type": "str",
+        "required": true,
+        "default": null
+      },
+      "labels": {
+        "type": "list[str] | None",
+        "required": false,
+        "default": null
+      }
+    },
+    "cost": 0.1
+  },
+  {
+    "name": "normalize_data",
+    "description": "Normalize a dict against a hint schema. Drops extra keys, fills missing with None, coerces obvious types.",
+    "input_type": "StructuredData",
+    "output_type": "StructuredData",
+    "kind": "primitive",
+    "domain": null,
+    "subdomain": null,
+    "capability_tag": null,
+    "parameters_schema": {
+      "data": {
+        "type": "dict[str, Any]",
+        "required": true,
+        "default": null
+      },
+      "schema": {
+        "type": "dict[str, str] | None",
+        "required": false,
+        "default": null
+      }
+    },
+    "cost": 0.02
+  },
+  {
+    "name": "chain_of_thought",
+    "description": "Produce a structured reasoning trace for the given input.",
+    "input_type": "Text",
+    "output_type": "ReasoningTrace",
+    "kind": "primitive",
+    "domain": null,
+    "subdomain": null,
+    "capability_tag": null,
+    "parameters_schema": {
+      "prompt": {
+        "type": "str",
+        "required": true,
+        "default": null
+      },
+      "hint": {
+        "type": "str | None",
+        "required": false,
+        "default": null
+      }
+    },
+    "cost": 0.2
+  },
+  {
+    "name": "compare",
+    "description": "Compare two texts on given criteria. Returns {summary, diffs:[{criterion,a_advantage,b_advantage,note}]}.",
+    "input_type": "Text",
+    "output_type": "Comparison",
+    "kind": "primitive",
+    "domain": null,
+    "subdomain": null,
+    "capability_tag": null,
+    "parameters_schema": {
+      "a": {
+        "type": "str",
+        "required": true,
+        "default": null
+      },
+      "b": {
+        "type": "str",
+        "required": false,
+        "default": ""
+      },
+      "criteria": {
+        "type": "list[str] | None",
+        "required": false,
+        "default": null
+      }
+    },
+    "cost": 0.2
+  },
+  {
+    "name": "detect_inconsistencies",
+    "description": "List logical/factual inconsistencies in a text as a list of issue strings.",
+    "input_type": "Text",
+    "output_type": "Issues",
+    "kind": "primitive",
+    "domain": null,
+    "subdomain": null,
+    "capability_tag": null,
+    "parameters_schema": {
+      "text": {
+        "type": "str",
+        "required": true,
+        "default": null
+      }
+    },
+    "cost": 0.15
+  },
+  {
+    "name": "compute_indicators",
+    "description": "Compute summary indicators from a TimeSeries: mean, std, min, max, last, pct_change_yoy.",
+    "input_type": "TimeSeries",
+    "output_type": "Indicators",
+    "kind": "primitive",
+    "domain": "economics",
+    "subdomain": null,
+    "capability_tag": "indicators",
+    "parameters_schema": {
+      "time_series": {
+        "type": "dict[str, Any]",
+        "required": true,
+        "default": null
+      }
+    },
+    "cost": 0.02
+  },
+  {
+    "name": "trend_analysis",
+    "description": "Determine trend direction (up/down/flat) and strength (R^2 of linear fit) of a TimeSeries.",
+    "input_type": "TimeSeries",
+    "output_type": "Trends",
+    "kind": "primitive",
+    "domain": "economics",
+    "subdomain": null,
+    "capability_tag": "trend",
+    "parameters_schema": {
+      "time_series": {
+        "type": "dict[str, Any]",
+        "required": true,
+        "default": null
+      }
+    },
+    "cost": 0.02
+  },
+  {
+    "name": "correlation_analysis",
+    "description": "Compute pairwise Pearson correlations between aligned series in a dict {name: values_list}.",
+    "input_type": "StructuredData",
+    "output_type": "CorrMatrix",
+    "kind": "primitive",
+    "domain": "economics",
+    "subdomain": null,
+    "capability_tag": "correlation",
+    "parameters_schema": {
+      "series_dict": {
+        "type": "dict[str, list[float]]",
+        "required": true,
+        "default": null
+      }
+    },
+    "cost": 0.05
+  },
+  {
+    "name": "financial_ratios",
+    "description": "Compute standard ratios + Altman Z + Piotroski F from a Filing's xbrl_facts.",
+    "input_type": "Filing",
+    "output_type": "RatioReport",
+    "kind": "primitive",
+    "domain": "economics",
+    "subdomain": null,
+    "capability_tag": "financial_ratios",
+    "parameters_schema": {
+      "filing": {
+        "type": "dict[str, Any]",
+        "required": true,
+        "default": null
+      }
+    },
+    "cost": 0.05
+  },
+  {
+    "name": "clause_extraction",
+    "description": "Extract clauses by category (default CUAD-41 taxonomy). Returns {clauses:[{category,text,confidence}]}.",
+    "input_type": "Text",
+    "output_type": "Clauses",
+    "kind": "primitive",
+    "domain": "legal",
+    "subdomain": "contract_analysis",
+    "capability_tag": "clause_extraction",
+    "parameters_schema": {
+      "text": {
+        "type": "str",
+        "required": true,
+        "default": null
+      },
+      "taxonomy": {
+        "type": "str | None",
+        "required": false,
+        "default": "CUAD41"
+      },
+      "min_conf": {
+        "type": "float | None",
+        "required": false,
+        "default": 0.4
+      },
+      "categories": {
+        "type": "list[str] | None",
+        "required": false,
+        "default": null
+      }
+    },
+    "cost": 0.3
+  },
+  {
+    "name": "obligation_detection",
+    "description": "Detect obligations as {party,obligation,trigger,deadline}. Returns list.",
+    "input_type": "Text",
+    "output_type": "ObligationList",
+    "kind": "primitive",
+    "domain": "legal",
+    "subdomain": null,
+    "capability_tag": "obligation",
+    "parameters_schema": {
+      "text": {
+        "type": "str",
+        "required": true,
+        "default": null
+      }
+    },
+    "cost": 0.3
+  },
+  {
+    "name": "rule_matching",
+    "description": "Match text against a rule pack (default gdpr_art5). Returns hits as {rule_id,principle,evidence,severity}.",
+    "input_type": "Text",
+    "output_type": "RuleHits",
+    "kind": "primitive",
+    "domain": "legal",
+    "subdomain": null,
+    "capability_tag": "rule_match",
+    "parameters_schema": {
+      "text": {
+        "type": "str",
+        "required": true,
+        "default": null
+      },
+      "rule_pack": {
+        "type": "str",
+        "required": false,
+        "default": "gdpr_art5"
+      }
+    },
+    "cost": 0.2
+  },
+  {
+    "name": "python_exec",
+    "description": "Execute restricted Python with `ctx` available; assign final value to `result`.",
+    "input_type": "StructuredData",
+    "output_type": "ExecResult",
+    "kind": "primitive",
+    "domain": null,
+    "subdomain": null,
+    "capability_tag": null,
+    "parameters_schema": {
+      "code": {
+        "type": "str",
+        "required": true,
+        "default": null
+      },
+      "ctx": {
+        "type": "dict[str, Any] | None",
+        "required": false,
+        "default": null
+      },
+      "timeout": {
+        "type": "float",
+        "required": false,
+        "default": 10.0
+      }
+    },
+    "cost": 0.1
+  },
+  {
+    "name": "score_accuracy",
+    "description": "Token-overlap F1 against a reference string (or list of acceptable references).",
+    "input_type": "Text",
+    "output_type": "Score",
+    "kind": "primitive",
+    "domain": null,
+    "subdomain": null,
+    "capability_tag": "score",
+    "parameters_schema": {
+      "output": {
+        "type": "str",
+        "required": true,
+        "default": null
+      },
+      "reference": {
+        "type": "str | list[str]",
+        "required": true,
+        "default": null
+      }
+    },
+    "cost": 0.01
+  },
+  {
+    "name": "consistency_check",
+    "description": "Heuristic 0..1 consistency score: penalizes contradictions, conflicting numbers, abrupt topic changes.",
+    "input_type": "Text",
+    "output_type": "Score",
+    "kind": "primitive",
+    "domain": null,
+    "subdomain": null,
+    "capability_tag": "consistency",
+    "parameters_schema": {
+      "text": {
+        "type": "str",
+        "required": true,
+        "default": null
+      }
+    },
+    "cost": 0.01
+  },
+  {
+    "name": "completeness_check",
+    "description": "0..1 score = fraction of `requirements` keywords found in output.",
+    "input_type": "StructuredData",
+    "output_type": "Score",
+    "kind": "primitive",
+    "domain": null,
+    "subdomain": null,
+    "capability_tag": "completeness",
+    "parameters_schema": {
+      "output": {
+        "type": "str",
+        "required": true,
+        "default": null
+      },
+      "requirements": {
+        "type": "list[str]",
+        "required": true,
+        "default": null
+      }
+    },
+    "cost": 0.01
+  }
+]

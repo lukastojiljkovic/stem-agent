@@ -48,12 +48,19 @@ The $2.4\times$ headline is meaningful but the per-task variance is large (eval 
 \begin{figure}[h]
 \centering
 \includegraphics[width=0.62\linewidth]{figures/cross_session.pdf}
-\caption{Trajectory of mean evaluation score across three sequential sessions. The persisted tool library carries forward; new composites graduated in run~$i$ become candidates in run~$i+1$, demonstrating ``between-session'' improvement without weight updates.}
+\caption{Trajectory of mean CUAD F1 across two sequential sessions. The persisted tool library carries forward; both promoted composites for the (legal, clause\_extraction) cell remain available to the next session's pipeline-selection step. L1 improves from $0.285 \to 0.322$ and L2 from $0.304 \to 0.322$ between sessions --- modest but in the right direction. Baseline drifts down ($0.128 \to 0.094$) due to per-task variance on a 3-contract held-out set.}
 \label{fig:traj}
 \end{figure}
 
+A note on what this two-session demo does \emph{not} show: an in-memory MAP-Elites archive that we did not yet persist between sessions. Each session starts the archive fresh from the loaded composites, so a new candidate that would have been gated as ``dominated'' by a prior cell occupant is currently accepted as ``novel\_cell'' on the second session if the prior occupant is not also re-evaluated. The library carries forward; the cell-occupancy decisions do not. We discuss this and other artifacts of the demo in \texttt{JOURNAL.md}.
+
 \subsection{Library lineage}
-The persistent library after the cross-session run shows a small set of $(\text{domain}, \text{capability})$ MAP-Elites cells, each occupied by the highest-scoring composite of its kind, with explicit parent$\rightarrow$child edges to its predecessor. The lineage diagram is rendered to \texttt{tool\_library/lineage.dot}; in this submission \texttt{report/figures/lineage.png} captures the state at the end of the cross-session run.
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.95\linewidth]{figures/lineage.png}
+\caption{Composite tool library at the end of two sessions. Both occupants live in the same $(\text{legal}, \text{clause\_extraction})$ MAP-Elites cell; parent\textendash child edges are empty because each was discovered as a one-step \texttt{clause\_extraction} pipeline (i.e., neither evolved \emph{from} the other). The first composite was discovered in session 1 with a higher train F1 ($0.586$) on the synthetic MSA; the second in session 2 with a lower train F1 ($0.383$) on the synthetic supply contract --- yet on the held-out 3-contract eval set the second session matched or slightly exceeded the first. This is the kind of train/eval discrepancy small models routinely show; persisting both occupants and re-ranking by held-out score across sessions is a fix we would add given more time.}
+\label{fig:lineage}
+\end{figure}
 
 \section{What surprised us / what failed}
 \begin{itemize}[leftmargin=1.2em]

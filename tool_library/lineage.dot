@@ -1,0 +1,10 @@
+digraph Lineage {
+  rankdir="LR";
+  node [shape=box, style="rounded,filled", fillcolor="#eef"];
+  subgraph cluster_legal_clause_extraction {
+    label="legal / clause_extraction";
+    style=dashed;
+    "comp_lega_clause_e_12a0f9" [label="comp_lega_clause_e_12a0f9\nscore=0.59"];
+    "comp_lega_clause_e_c98a57" [label="comp_lega_clause_e_c98a57\nscore=0.38"];
+  }
+}
