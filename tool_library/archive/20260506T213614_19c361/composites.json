@@ -831,7 +831,7 @@
     "version": 1
   },
   {
-    "id": "comp_econ_financia_ce0110",
+    "id": "comp_econ_financia_19c361",
     "kind": "composite",
     "domain": "economics",
     "subdomain": null,
@@ -853,8 +853,8 @@
     "metrics_history": [
       {
         "score": 0.257,
-        "session": "20260506T213601_ce0110",
-        "ts": "2026-05-06T21:48:17.609630"
+        "session": "20260506T213614_19c361",
+        "ts": "2026-05-06T21:44:37.026606"
       }
     ],
     "embedding": [
@@ -1244,7 +1244,7 @@
       0.004908618051558733
     ],
     "description": "Composite for financial_qa in economics",
-    "born_at_session": "20260506T213601_ce0110",
+    "born_at_session": "20260506T213614_19c361",
     "version": 1
   }
 ]

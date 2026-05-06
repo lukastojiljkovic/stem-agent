@@ -12,7 +12,8 @@ from .registry import ToolLibrary
 
 
 _PRIMITIVE_FNS = [
-    R.web_search, R.wikipedia_lookup, R.arxiv_search,
+    R.web_search, R.wikipedia_lookup, R.wikipedia_search, R.arxiv_search,
+    R.semantic_scholar_search, R.openalex_search, R.extract_search_query,
     R.fred_query, R.edgar_fetch, R.courtlistener_search, R.eurlex_lookup,
     P.pdf_extract, P.html_extract, P.summarize, P.extract_entities, P.classify, P.normalize_data,
     RS.chain_of_thought, RS.compare, RS.detect_inconsistencies,

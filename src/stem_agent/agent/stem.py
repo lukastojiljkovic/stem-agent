@@ -49,50 +49,140 @@ _DOMAIN_QUESTIONS: dict[str, list[str]] = {
 
 
 def bootstrap_domain_brief(domain: str, lm: LMClient,
-                           library: ToolLibrary, max_queries: int = 4) -> DomainBrief:
-    """Run a small bootstrapping loop: search -> summarize -> store as brief."""
+                           library: ToolLibrary, max_queries: int = 4,
+                           max_retries: int = 2) -> DomainBrief:
+    """Run a small bootstrapping loop: search -> summarize -> store as brief.
+
+    For each domain question we try multiple key-free backends in turn (Wikipedia
+    search, Semantic Scholar, OpenAlex, arXiv, plain Wikipedia lookup, web
+    search). If none of them return anything for a question, we ask the LLM to
+    rewrite the query and retry once. The point is to keep the
+    "stem-cell environmental signal" mechanism working even when the agent has
+    no API keys and DDG is throttled."""
     questions = _DOMAIN_QUESTIONS.get(domain, [])[:max_queries]
     if not questions:
         return DomainBrief(domain=domain, paragraphs=[], sources=[])
 
-    web = library.get("web_search").run if "web_search" in library._tools else None
-    wiki = library.get("wikipedia_lookup").run if "wikipedia_lookup" in library._tools else None
-    paras: list[str] = []
     sources: list[dict[str, str]] = []
+    paras: list[str] = []
+
     for q in questions:
         log_retrieve(f"[bootstrap/{domain}] {q}")
         snippets: list[str] = []
-        try:
-            if web:
-                docs = web(query=q, k=3) or []
-                for d in docs[:3]:
-                    snippets.append(d.get("snippet","")[:600])
-                    if d.get("url"):
-                        sources.append({"title": d.get("title",""), "url": d.get("url","")})
-        except Exception: pass
-        try:
-            if wiki and len(snippets) < 2:
-                d = wiki(title=q.split("?")[0].split(" in ")[-1])
-                if d.get("text"):
-                    snippets.append(d["text"][:1000])
-                    if d.get("url"):
-                        sources.append({"title": d.get("title",""), "url": d.get("url","")})
-        except Exception: pass
+        attempt_query = q
+        for attempt in range(max_retries + 1):
+            new_snips, new_sources = _gather_snippets_for_query(library, attempt_query)
+            snippets.extend(new_snips)
+            sources.extend(new_sources)
+            if snippets:
+                break
+            if attempt < max_retries:
+                # Ask the LLM to rewrite the query into something more search-friendly.
+                try:
+                    rewritten = _rewrite_query(lm, q, attempt_query, domain,
+                                                prior_snippets_empty=True)
+                except Exception:
+                    rewritten = ""
+                if not rewritten or rewritten.strip().lower() == attempt_query.strip().lower():
+                    log_retrieve(f"[bootstrap/{domain}] no rewrite available; giving up on this question")
+                    break
+                log_retrieve(f"[bootstrap/{domain}] rewriting query -> {rewritten!r}")
+                attempt_query = rewritten
+
         if not snippets:
             continue
         try:
+            # max_tokens generous enough that Gemma 4's analysis channel doesn't
+            # eat the entire budget before the user-visible final channel emits.
             out = lm.chat(
-                [ChatMessage(role="system", content="You are a careful research assistant. Be terse."),
+                [ChatMessage(role="system",
+                             content="You are a careful research assistant. Output only the final paragraph - no preamble, no analysis."),
                  ChatMessage(role="user", content=(f"Question: {q}\n\nSources:\n" + "\n---\n".join(snippets)
                                                    + "\n\nWrite a single paragraph (<=120 words) summarizing what these sources say."))],
-                temperature=0.3, top_p=0.9, max_tokens=300,
+                temperature=0.3, top_p=0.9, max_tokens=1500,
             )
             para = (out.text or "").strip()
             if para:
                 paras.append(f"{q}\n{para}")
-        except Exception:
-            pass
+            else:
+                from ..ui.console import log_warn
+                log_warn(f"[bootstrap] LM returned empty text for question: {q!r}")
+        except Exception as e:
+            from ..ui.console import log_warn
+            log_warn(f"[bootstrap] LM summarize failed for question {q!r}: {e}")
+
     return DomainBrief(domain=domain, paragraphs=paras, sources=sources)
+
+
+def _gather_snippets_for_query(library: ToolLibrary, query: str
+                                ) -> tuple[list[str], list[dict[str, str]]]:
+    """Try several key-free retrieval primitives in turn for one query.
+    Returns (snippets, sources). Each primitive has its own cache so retries
+    are cheap once a backend has answered."""
+    snippets: list[str] = []
+    sources: list[dict[str, str]] = []
+
+    def get(name: str):
+        return library.get(name).run if name in library._tools else None
+
+    # Order: Wikipedia search (full-text, fast) -> Semantic Scholar -> OpenAlex
+    # -> arxiv -> Wikipedia lookup -> web (Tavily/DDG, may be empty without keys).
+    backends: list[tuple[str, Any, dict[str, Any]]] = [
+        ("wikipedia_search", get("wikipedia_search"), {"query": query, "k": 3}),
+        ("semantic_scholar_search", get("semantic_scholar_search"), {"query": query, "k": 3}),
+        ("openalex_search", get("openalex_search"), {"query": query, "k": 3}),
+        ("arxiv_search", get("arxiv_search"), {"query": query, "k": 2}),
+        ("wikipedia_lookup", get("wikipedia_lookup"), {"title": query.rstrip("?").split(" in ")[-1]}),
+        ("web_search", get("web_search"), {"query": query, "k": 3}),
+    ]
+    for name, fn, kwargs in backends:
+        if fn is None:
+            continue
+        try:
+            res = fn(**kwargs)
+        except Exception:
+            continue
+
+        if name == "wikipedia_lookup":
+            if res and res.get("text"):
+                snippets.append(res["text"][:1000])
+                if res.get("url"):
+                    sources.append({"title": res.get("title",""), "url": res.get("url","")})
+        elif isinstance(res, list):
+            for d in res[:3]:
+                snippet = (d.get("snippet") or d.get("abstract") or "")[:800]
+                if snippet:
+                    snippets.append(snippet)
+                if d.get("url"):
+                    sources.append({"title": d.get("title",""), "url": d.get("url","")})
+        if snippets:
+            # First backend that yielded text is good enough; stop early.
+            break
+    return snippets, sources
+
+
+def _rewrite_query(lm: LMClient, original_question: str, last_query: str,
+                   domain: str, prior_snippets_empty: bool) -> str:
+    """Ask the LLM to produce a more search-engine-friendly query."""
+    sys = ("You rewrite research questions into short, high-recall search-engine "
+           "queries. Output ONLY the rewritten query, no quotes, no explanation, "
+           "<= 12 words.")
+    note = ("All prior backends returned nothing for the query below; produce a "
+            "different phrasing that's more likely to retrieve results."
+            ) if prior_snippets_empty else ""
+    user = (
+        f"DOMAIN: {domain}\n"
+        f"ORIGINAL QUESTION: {original_question}\n"
+        f"LAST TRIED QUERY: {last_query}\n"
+        f"{note}"
+    )
+    out = lm.chat(
+        [ChatMessage(role="system", content=sys),
+         ChatMessage(role="user", content=user)],
+        temperature=0.5, top_p=0.9, max_tokens=64,
+    )
+    txt = (out.text or "").strip().strip('"\'').splitlines()[0] if (out.text or "").strip() else ""
+    return txt.rstrip(".?!,:;").strip()
 
 
 def render_brief(brief: DomainBrief) -> str:

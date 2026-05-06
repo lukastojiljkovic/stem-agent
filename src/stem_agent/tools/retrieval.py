@@ -1,13 +1,23 @@
 """Retrieval primitives. All return plain dicts/lists; the executor wraps them.
 
 Tool list:
-    web_search       — Tavily (if TAVILY_API_KEY) → DDG fallback → empty results.
-    wikipedia_lookup — wikipedia-api.
-    arxiv_search     — arxiv pkg with built-in 1-req/3-sec rate limit.
-    fred_query       — fredapi (requires FRED_API_KEY).
-    edgar_fetch      — edgartools (User-Agent set; 10 req/sec respected).
+    web_search           — Tavily (if TAVILY_API_KEY) -> DDG fallback -> empty.
+    wikipedia_lookup     — wikipedia-api.
+    wikipedia_search     — full-text search the Wikipedia API (no key, returns multiple hits).
+    arxiv_search         — arxiv pkg with built-in 1-req/3-sec rate limit.
+    semantic_scholar_search — Semantic Scholar Graph API (no key, public rate limits).
+    openalex_search      — OpenAlex /works endpoint (no key, polite-pool rate limits).
+    extract_search_query — LLM-driven Text -> Query bridge: lets evolution propose
+                           web/wiki/arxiv/SS/OpenAlex steps after a TEXT input.
+    fred_query           — fredapi (requires FRED_API_KEY).
+    edgar_fetch          — edgartools (User-Agent set; 10 req/sec respected).
     courtlistener_search — raw requests + COURTLISTENER_TOKEN.
-    eurlex_lookup    — raw requests + BeautifulSoup over EUR-Lex.
+    eurlex_lookup        — raw requests + BeautifulSoup over EUR-Lex.
+
+The first six (web/wikipedia*/arxiv/semantic_scholar/openalex) and
+extract_search_query are KEY-FREE and form the agent's no-credentials
+research path: TEXT task content -> extract_search_query -> {wiki, arxiv,
+SS, OpenAlex, web} -> Documents -> summarize.
 """
 from __future__ import annotations
 
@@ -22,7 +32,11 @@ from .base import tool, ToolKind
 
 WEB_CACHE = JsonCache("web", ttl_s=24 * 3600)
 WIKI_CACHE = JsonCache("wiki", ttl_s=7 * 24 * 3600)
+WIKI_SEARCH_CACHE = JsonCache("wiki_search", ttl_s=24 * 3600)
 ARXIV_CACHE = JsonCache("arxiv", ttl_s=7 * 24 * 3600)
+SS_CACHE = JsonCache("semantic_scholar", ttl_s=7 * 24 * 3600)
+OPENALEX_CACHE = JsonCache("openalex", ttl_s=7 * 24 * 3600)
+QUERY_REWRITE_CACHE = JsonCache("query_rewrite", ttl_s=24 * 3600)
 FRED_CACHE = JsonCache("fred", ttl_s=24 * 3600)
 EDGAR_CACHE = JsonCache("edgar", ttl_s=7 * 24 * 3600)
 CL_CACHE = JsonCache("courtlistener", ttl_s=7 * 24 * 3600)
@@ -321,3 +335,210 @@ def eurlex_lookup(celex_or_query: str) -> dict[str, Any]:
         out["error"] = str(e)
     EURLEX_CACHE.put(payload, out)
     return out
+
+
+# ---------------------------------------------------------------------------
+# Key-free research path: extra retrieval primitives that need no credentials.
+# ---------------------------------------------------------------------------
+
+@tool(
+    name="wikipedia_search",
+    description="Full-text search over Wikipedia (no key). Returns list of {title,url,snippet} hits.",
+    input_type=TypeName.QUERY,
+    output_type=TypeName.DOCUMENTS,
+    kind=ToolKind.PRIMITIVE,
+    cost=0.05,
+)
+def wikipedia_search(query: str, k: int = 5, lang: str = "en") -> list[dict[str, Any]]:
+    payload = {"q": query, "k": k, "lang": lang}
+    cached = WIKI_SEARCH_CACHE.get(payload)
+    if cached is not None:
+        log_retrieve(f"wiki_search (cache) k={k}: {query!r}")
+        return cached
+    log_retrieve(f"wiki_search k={k}: {query!r}")
+    out: list[dict[str, Any]] = []
+    try:
+        import requests
+        url = f"https://{lang}.wikipedia.org/w/api.php"
+        params = {
+            "action": "query", "list": "search", "srsearch": query,
+            "srlimit": str(k), "format": "json", "utf8": "1",
+        }
+        r = requests.get(url, params=params, timeout=15,
+                         headers={"User-Agent": "stem-agent/0.1 (research)"})
+        if r.status_code == 200:
+            data = r.json().get("query", {}).get("search", [])
+            for item in data[:k]:
+                title = item.get("title", "")
+                snippet = (item.get("snippet") or "").replace('<span class="searchmatch">', "").replace("</span>", "")
+                out.append({
+                    "title": title,
+                    "url": f"https://{lang}.wikipedia.org/wiki/{title.replace(' ', '_')}",
+                    "snippet": snippet[:1500],
+                })
+    except Exception as e:
+        log_warn(f"wikipedia_search failed: {e}")
+    WIKI_SEARCH_CACHE.put(payload, out)
+    return out
+
+
+@tool(
+    name="semantic_scholar_search",
+    description="Search Semantic Scholar Graph API (no key). Returns list of {title,abstract,authors,year,url}.",
+    input_type=TypeName.QUERY,
+    output_type=TypeName.DOCUMENTS,
+    kind=ToolKind.PRIMITIVE,
+    cost=0.10,
+)
+def semantic_scholar_search(query: str, k: int = 5) -> list[dict[str, Any]]:
+    payload = {"q": query, "k": k}
+    cached = SS_CACHE.get(payload)
+    if cached is not None:
+        log_retrieve(f"semantic_scholar (cache) k={k}: {query!r}")
+        return cached
+    log_retrieve(f"semantic_scholar k={k}: {query!r}")
+    out: list[dict[str, Any]] = []
+    try:
+        import requests
+        url = "https://api.semanticscholar.org/graph/v1/paper/search"
+        params = {
+            "query": query, "limit": str(k),
+            "fields": "title,abstract,year,authors,url,venue,externalIds",
+        }
+        r = requests.get(url, params=params, timeout=20,
+                         headers={"User-Agent": "stem-agent/0.1"})
+        if r.status_code == 200:
+            for item in (r.json().get("data") or [])[:k]:
+                out.append({
+                    "title": item.get("title", ""),
+                    "abstract": (item.get("abstract") or "")[:1500],
+                    "authors": [a.get("name", "") for a in (item.get("authors") or [])][:6],
+                    "year": item.get("year"),
+                    "venue": item.get("venue", ""),
+                    "url": item.get("url") or _ext_url(item.get("externalIds") or {}),
+                })
+        else:
+            log_warn(f"semantic_scholar HTTP {r.status_code}")
+    except Exception as e:
+        log_warn(f"semantic_scholar failed: {e}")
+    SS_CACHE.put(payload, out)
+    return out
+
+
+def _ext_url(ext: dict[str, Any]) -> str:
+    if "DOI" in ext: return f"https://doi.org/{ext['DOI']}"
+    if "ArXiv" in ext: return f"https://arxiv.org/abs/{ext['ArXiv']}"
+    if "PubMed" in ext: return f"https://pubmed.ncbi.nlm.nih.gov/{ext['PubMed']}"
+    return ""
+
+
+@tool(
+    name="openalex_search",
+    description="Search OpenAlex /works endpoint (no key). Returns list of {title,abstract,authors,year,doi,venue}.",
+    input_type=TypeName.QUERY,
+    output_type=TypeName.DOCUMENTS,
+    kind=ToolKind.PRIMITIVE,
+    cost=0.10,
+)
+def openalex_search(query: str, k: int = 5) -> list[dict[str, Any]]:
+    payload = {"q": query, "k": k}
+    cached = OPENALEX_CACHE.get(payload)
+    if cached is not None:
+        log_retrieve(f"openalex (cache) k={k}: {query!r}")
+        return cached
+    log_retrieve(f"openalex k={k}: {query!r}")
+    out: list[dict[str, Any]] = []
+    try:
+        import requests
+        url = "https://api.openalex.org/works"
+        params = {"search": query, "per-page": str(k)}
+        r = requests.get(url, params=params, timeout=20,
+                         headers={"User-Agent": "stem-agent/0.1 (mailto:noreply@example.com)"})
+        if r.status_code == 200:
+            for w in (r.json().get("results") or [])[:k]:
+                # OpenAlex returns abstract as an inverted index; reconstruct it.
+                inv = w.get("abstract_inverted_index") or {}
+                abstract = _reconstruct_abstract(inv)
+                out.append({
+                    "title": w.get("title", "") or w.get("display_name", ""),
+                    "abstract": (abstract or "")[:1500],
+                    "authors": [a.get("author", {}).get("display_name", "")
+                                for a in (w.get("authorships") or [])][:6],
+                    "year": w.get("publication_year"),
+                    "venue": (w.get("host_venue") or {}).get("display_name", ""),
+                    "doi": w.get("doi", ""),
+                    "url": w.get("doi", "") or w.get("id", ""),
+                })
+        else:
+            log_warn(f"openalex HTTP {r.status_code}")
+    except Exception as e:
+        log_warn(f"openalex failed: {e}")
+    OPENALEX_CACHE.put(payload, out)
+    return out
+
+
+def _reconstruct_abstract(inverted_index: dict[str, list[int]]) -> str:
+    if not inverted_index: return ""
+    positions: list[tuple[int, str]] = []
+    for word, idxs in inverted_index.items():
+        for i in idxs:
+            positions.append((i, word))
+    positions.sort()
+    return " ".join(w for _, w in positions)
+
+
+# ---------------------------------------------------------------------------
+# extract_search_query: TEXT -> QUERY bridge. With this primitive, evolution
+# can propose pipelines like (pdf_extract -> extract_search_query -> wikipedia_search
+# -> summarize) where retrieval happens MID-pipeline rather than only at the
+# very start. Without it, TEXT-input tasks have no path to web/wiki/SS/OpenAlex.
+# ---------------------------------------------------------------------------
+
+@tool(
+    name="extract_search_query",
+    description="Distill an input TEXT into a short search-engine-ready Query string. LLM-driven.",
+    input_type=TypeName.TEXT,
+    output_type=TypeName.QUERY,
+    kind=ToolKind.PRIMITIVE,
+    cost=0.10,
+)
+def extract_search_query(text: str, intent: str | None = None,
+                         max_words: int = 12) -> str:
+    """Produce a focused, keyword-style query that captures the essence of `text`.
+    Optional `intent` hint biases toward a domain (e.g. "legal precedents on",
+    "financial ratios for")."""
+    from ..llm.lm_client import LMClient, ChatMessage
+    if not isinstance(max_words, int) or max_words <= 0:
+        max_words = 12
+    payload = {"t": (text or "")[:2000], "i": intent or "", "n": max_words}
+    cached = QUERY_REWRITE_CACHE.get(payload)
+    if cached is not None:
+        log_retrieve(f"extract_query (cache) -> {cached!r}")
+        return str(cached)
+
+    if not text or not str(text).strip():
+        return ""
+    sys = ("You are a search query distiller. Read the TEXT and produce ONE concise "
+           f"keyword-style search query of at most {max_words} words. "
+           "No quotes, no Boolean operators, no question marks. "
+           "Output ONLY the query, nothing else.")
+    user = (f"INTENT: {intent}\n\n" if intent else "") + f"TEXT:\n{str(text)[:2000]}"
+    try:
+        client = LMClient()
+        out = client.chat(
+            [ChatMessage(role="system", content=sys),
+             ChatMessage(role="user", content=user)],
+            temperature=0.3, top_p=0.9, max_tokens=64,
+        )
+        q = (out.text or "").strip().strip('"\'').splitlines()[0] if (out.text or "").strip() else ""
+        # Strip trailing punctuation; cap word count.
+        q = q.rstrip(".?!,:;").strip()
+        words = q.split()
+        if len(words) > max_words:
+            q = " ".join(words[:max_words])
+    except Exception as e:
+        log_warn(f"extract_search_query failed: {e}")
+        q = " ".join((text or "").split()[:max_words])
+    log_retrieve(f"extract_query -> {q!r}")
+    QUERY_REWRITE_CACHE.put(payload, q)
+    return q

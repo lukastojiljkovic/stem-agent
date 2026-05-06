@@ -93,12 +93,20 @@ def score_obligations_overlap(predicted: list[dict[str, Any]],
     return sum(f1s)/len(f1s)
 
 
-def score_ratios_within_tolerance(predicted: dict[str, Any],
+def score_ratios_within_tolerance(predicted: Any,
                                   gold: dict[str, float],
                                   tol: float = 0.10) -> float:
     if not gold: return 1.0
-    p = predicted.get("ratios") if isinstance(predicted, dict) and "ratios" in predicted else predicted
-    p = p or {}
+    if isinstance(predicted, dict) and "ratios" in predicted:
+        p = predicted.get("ratios") or {}
+    elif isinstance(predicted, dict):
+        p = predicted
+    else:
+        # Non-dict output (string from summarize/classify, list, etc.) cannot
+        # contain ratio keys; score is zero.
+        return 0.0
+    if not isinstance(p, dict):
+        return 0.0
     hits = 0; total = 0
     for k, gv in gold.items():
         total += 1

@@ -31,9 +31,9 @@ The methodological lineage is explicit. Skill libraries that grow with use come 
 
 A \textbf{tool} $t = (\text{name}, \tau_{\text{in}}, \tau_{\text{out}}, \theta, k, c)$ is a typed callable with input type $\tau_{\text{in}}$, output type $\tau_{\text{out}}$, parameter schema $\theta$, kind $k \in \{\text{primitive}, \text{composite}, \text{universal}\}$, and cost $c \in \mathbb{R}_{\geq 0}$.
 
-A \textbf{pipeline} $P = (s_1, \ldots, s_n)$ is an ordered list of steps $s_i = (t_i, \theta_i)$ with $\theta_i$ a binding of $t_i$'s parameters. We restrict $n \leq 5$ for tractability. $P$ \textbf{validates} against an input type $\tau_0$ iff $\tau_0$ is compatible with $\tau_{\text{in}}(t_1)$ and $\tau_{\text{out}}(t_i)$ is compatible with $\tau_{\text{in}}(t_{i+1})$ for all $i$, where compatibility is identity or a member of an explicit coercion table $C \subset \mathcal{T} \times \mathcal{T}$ (Documents $\to$ Text, structured outputs $\to$ Text/StructuredData, etc.).
+A \textbf{pipeline} $P = (s_1, \ldots, s_n)$ is an ordered list of steps $s_i = (t_i, \theta_i)$. We restrict $n \leq 5$. $P$ \textbf{validates} against an input type $\tau_0$ iff $\tau_0$ is compatible with $\tau_{\text{in}}(t_1)$ and $\tau_{\text{out}}(t_i)$ is compatible with $\tau_{\text{in}}(t_{i+1})$ for all $i$, where compatibility is identity or membership in an explicit coercion table $C$ (Documents $\to$ Text, structured outputs $\to$ Text/StructuredData, etc.).
 
-The \textbf{tool library} $\mathcal{L}$ holds primitives (hand-coded) and composites (graduated pipelines). \textbf{Universal} tools (LaTeX builder, grammar check, PDF compile) are tagged with $k=\text{universal}$ and excluded from evolution candidate sets at the registry level: an explicit non-mutability invariant rather than a runtime check.
+The \textbf{tool library} $\mathcal{L}$ holds primitives (hand-coded, ~30 in this build) and composites (graduated pipelines). \textbf{Universal} tools (LaTeX builder, grammar check, PDF compile) are tagged with $k=\text{universal}$ and excluded from evolution candidate sets at the registry level: an explicit non-mutability invariant rather than a runtime check.
 
 \subsection{Step-wise process scoring}
 
@@ -41,72 +41,67 @@ For a pipeline $P$ executed on input $x_0$ producing intermediate outputs $x_1, 
 \[
 s_k \;=\; 0.5 \cdot \mathrm{quality}(x_k) \;+\; 0.3 \cdot \mathrm{consistency}(x_k) \;+\; 0.2 \cdot \mathrm{relevance}(x_k, d)
 \]
-where $\mathrm{quality}(\cdot)$ is an LLM rubric, $\mathrm{consistency}(\cdot)$ is a deterministic heuristic, and $\mathrm{relevance}(\cdot, d)$ is a keyword-table proxy for domain $d$. The cumulative recurrence
+with $\mathrm{quality}(\cdot)$ an LLM rubric, $\mathrm{consistency}(\cdot)$ a deterministic heuristic, and $\mathrm{relevance}(\cdot, d)$ a keyword-table proxy for domain $d$. The cumulative recurrence $c_k = \alpha\, c_{k-1} + \beta\, s_k$ with $(\alpha, \beta) = (0.7, 0.3)$ rewards consistent improvement and penalizes early bad steps. Pipelines whose step score drops below $\eta = 0.20$ are early-terminated. The final pipeline score combines a final-output term, the per-step mean, the step-wise consistency, and a complexity penalty:
 \[
-c_k \;=\; \alpha\, c_{k-1} + \beta\, s_k, \qquad (\alpha, \beta) = (0.7, 0.3)
+\mathrm{Fitness}(P) \;=\; w_o \, \mathrm{out}(x_n) \;+\; w_s \, \overline{s}_k \;+\; w_c \, \overline{\mathrm{consistency}}_k \;-\; \lambda \, |P|
 \]
-rewards consistent improvement and penalizes early bad steps. Pipelines whose step score drops below a threshold $\eta = 0.20$ are early-terminated. The final pipeline score combines a final-output term, the per-step mean, the step-wise consistency, and a complexity penalty:
-\[
-\mathrm{Fitness}(P) \;=\; w_o \, \mathrm{out}(x_n) \;+\; w_s \, \overline{s}_k \;+\; w_c \, \overline{\mathrm{consistency}}_k \;-\; \lambda \, |P|, \quad (w_o, w_s, w_c, \lambda) = (0.5, 0.3, 0.2, 0.05)
-\]
-where $\mathrm{out}(x_n)$ is the deterministic ground-truth scorer when one is registered for the task (CUAD F1 against gold spans, ratio tolerance, classification accuracy), and otherwise the rubric quality of the final step. The deterministic anchor is essential: a 4B local model judging its own outputs Goodharts within a few generations~\cite{selfprefbias2024}, so we route the load-bearing fitness signal through ground truth wherever it exists.
+with $(w_o, w_s, w_c, \lambda) = (0.5, 0.3, 0.2, 0.05)$, where $\mathrm{out}(x_n)$ is a deterministic ground-truth scorer when one is registered for the task (CUAD F1 against gold spans, ratio tolerance, classification accuracy) and otherwise the rubric quality of the final step. The deterministic anchor is essential: a 4B local model judging its own outputs Goodharts within a few generations~\cite{selfprefbias2024}, so we route the load-bearing fitness signal through ground truth wherever it exists.
 
 \subsection{Search and promotion}
 
-Evolution is beam search of width $k$ over typed pipelines, seeded from an LLM proposal validated against $\mathcal{L}$ (with a hand-coded fallback per spec~\S12 if the proposal fails to type-check). Each iteration applies six mutation operators to every beam member: \texttt{add\_step}, \texttt{remove\_step}, \texttt{replace\_step}, \texttt{reorder\_steps}, \texttt{inject\_domain} (biased toward domain-tagged primitives), and \texttt{parametric\_mutate} (changes one parameter without changing structure). Each operator returns a type-valid descendant or $\emptyset$. After scoring, the top $k$ across the beam $\cup$ proposals carry forward. Rollback to a snapshotted best after two consecutive declines; $\epsilon$-stop on a windowed plateau; threshold-stop on $\mathrm{Fitness} \geq 0.65$.
+Evolution is beam search of width $k$ over typed pipelines, seeded from an LLM proposal validated against $\mathcal{L}$ (with a capability-aware hand-coded fallback if the proposal fails to type-check). Each iteration applies six mutation operators to every beam member: \texttt{add\_step}, \texttt{remove\_step}, \texttt{replace\_step}, \texttt{reorder\_steps}, \texttt{inject\_domain} (biased toward domain-tagged primitives), and \texttt{parametric\_mutate} (changes one parameter without changing structure). After scoring, the top $k$ across the beam $\cup$ proposals carry forward. Rollback to a snapshotted best after two consecutive declines; $\epsilon$-stop on a windowed plateau; threshold-stop on $\mathrm{Fitness} \geq 0.65$.
 
-Promotion of a candidate composite $P^\star$ requires three conditions: (a) a strict improvement over its parent on the dev set by $\geq 2$ percentage points; (b) no regression on any item in the held-out regression suite; and (c) MAP-Elites novelty/dominance --- the candidate either occupies an empty $(\text{domain}, \text{capability})$ cell or strictly dominates the cell's current occupant by score. Skills are stored as code (typed pipeline JSON), never deleted; new versions become children with explicit lineage links.
+Promotion of a candidate $P^\star$ requires three conditions: (a) a strict improvement over its parent on the dev set by $\geq 2$ percentage points; (b) no regression on any item in the held-out regression suite; and (c) MAP-Elites novelty/dominance --- the candidate either occupies an empty $(\text{domain}, \text{capability})$ cell or strictly dominates the cell's current occupant. Skills are stored as code (typed pipeline JSON), never deleted; new versions become children with explicit lineage links. The MAP-Elites archive is rebuilt at session start from the persisted library, so cell occupancy carries forward across sessions.
+
+\subsection{Bootstrapping the differentiation signal}
+
+Before evolution, the L0 agent runs a domain bootstrapping pass: 3-5 question templates per domain are issued through a chain of key-free retrieval backends (Wikipedia full-text search, Semantic Scholar Graph API, OpenAlex, arXiv, Wikipedia article lookup, and a Tavily/DDG fallback web search), with first-non-empty wins. If all backends return nothing for a question, the LLM is asked to rewrite the query into a more search-friendly form and the chain is retried. Recovered snippets are summarized into a \texttt{domain\_brief.md} that is pinned into the L1 system prompt. A \texttt{Text}-to-\texttt{Query} primitive (\texttt{extract\_search\_query}) lets evolution-mutated pipelines also call retrieval mid-pipeline rather than only at session start.
 
 \section{Experiments}
 
-We ran the deep track --- Legal $\rightarrow$ Contract Analysis on a hand-coded CUAD-style micro-corpus of five contracts (CUAD HF dataset~\cite{cuad2021} was unavailable mid-build due to a HuggingFace v4 \texttt{trust\_remote\_code} change; the synthetic fallback ships a 4-clause-per-contract gold set spanning Governing Law, Termination for Convenience, Cap on Liability, and Anti-Assignment). Tasks split into 2 train (library-construction) and 3 held-out eval. Each session executes Phase 0 (library load), Phase 1 (L1 evolution; empty here because all CUAD tasks are subdomain-tagged), Phase 2 (L2 evolution on the contract-analysis subdomain), Phase 3 (frozen evaluation), and Phase 4 (PDF rendering via the universal frozen tools). Inference: Gemma 4 E4B (Q4\_K\_M GGUF) via LM Studio at \texttt{localhost:1234}. Sampling: $T=1.0$, $p=0.95$, $k=64$ for general; $T=0.3$, $p=0.9$ for structured output. \texttt{max\_tokens} hard-capped at 8192 to stay below LM Studio's documented silent generation cap near 16K.
+We ran the deep track --- Legal $\rightarrow$ Contract Analysis on a hand-coded CUAD-style micro-corpus of ten contracts, plus a 12-item LegalBench micro-slice (\texttt{hearsay}/\texttt{proa}/\texttt{contract\_qa}) --- across three sequential sessions with the library carrying forward, plus a one-session shallow Economics track on EDGAR ratios + FinanceBench-style QA. Tasks split into train (library-construction) and held-out eval. Inference: Gemma 4 E4B (Q4\_K\_M GGUF) via LM Studio at \texttt{localhost:1234}. Sampling: $T=1.0$, $p=0.95$, $k=64$ for general; $T=0.3$, $p=0.9$ for structured output. \texttt{max\_tokens} hard-capped at 8192 to stay below LM Studio's documented silent generation cap near 16K.
 
-\subsection{Headline result: baseline vs L1 vs L2}
+\subsection{Headline result: baseline vs L1 vs L2 (session 3)}
 \begin{figure}[h]
 \centering
-\includegraphics[width=0.62\linewidth]{figures/bar_levels.pdf}
-\caption{Mean CUAD-style clause-extraction F1 across the 3-contract held-out evaluation set, contract-analysis track, session 1. \textbf{Baseline} is the spec's hand-coded pipeline \texttt{clause\_extraction} $\rightarrow$ \texttt{summarize} (mean $0.128$). \textbf{L1} is the best L1-promoted composite per capability tag (mean $0.285$, $2.2\times$ baseline). \textbf{L2} is the best L2-promoted composite restricted to the Contract Analysis subdomain (mean $0.304$, $2.4\times$ baseline). Per-task F1 ranges from $0.056$ to $0.624$; every individual L2 score either matches or exceeds the corresponding baseline on the same contract.}
+\includegraphics[width=0.95\linewidth]{figures/bar_levels.pdf}
+\caption{Held-out evaluation, session 3 (legal track, library carrying forward from sessions 1 and 2). \textbf{Left:} mean score across all 18 eval tasks (5 CUAD + 13 LegalBench). \textbf{Right:} CUAD-only slice (5 hand-coded synthetic contracts; macro-F1 against gold spans for four CUAD categories). On the CUAD slice, L1 reaches $0.222$ vs baseline $0.095$ ($2.3\times$). The LegalBench tie ($0.923$ across all levels) is structural --- both the baseline and the agent's promoted composite are \texttt{classify(["Yes","No"])} pipelines that reduce to identical predicted labels under our normalizer. The CUAD slice is where the search has room to move and we measure the lift there.}
 \label{fig:bars}
 \end{figure}
 
-\paragraph{The agent converged on a one-step pipeline.} The L2-promoted composite for contract analysis is, after evolution, a single \texttt{clause\_extraction} step with default parameters. Beam search proposed and tested longer pipelines that appended \texttt{summarize}, \texttt{detect\_inconsistencies}, or \texttt{rule\_matching} after the extraction; the deterministic anchor (token-overlap F1 against gold spans) penalized the verbose summarized outputs and pruned them. We initially expected richer composites; the search produced the simplest correct answer instead. Read this as the system working --- Goodhart-protection via deterministic checks kept the search honest --- but also as a statement that the agent's value at this scale is largely \emph{parameter discovery and structural pruning} on existing primitives rather than the invention of novel structure.
-
-\subsection{Cross-session improvement}
+\subsection{Cross-session improvement (n=3)}
 \begin{figure}[h]
 \centering
-\includegraphics[width=0.62\linewidth]{figures/cross_session.pdf}
-\caption{Trajectory of mean CUAD F1 across two sequential sessions, library carrying forward. L1 improves from $0.285 \to 0.322$ and L2 from $0.304 \to 0.322$ between sessions; baseline drifts down ($0.128 \to 0.094$) within the per-task variance of a 3-contract eval. Session 2's promoted composite scored \emph{lower} on its train task ($0.383$ vs $0.586$) but \emph{higher} on held-out eval --- evidence that defaults generalize better than session-specific parameter tuning at this scale.}
+\includegraphics[width=0.95\linewidth]{figures/cross_session.pdf}
+\caption{Trajectory across three sequential legal-track sessions; the library carries forward and the MAP-Elites archive is reseeded from \texttt{composites.json} at session start so cell occupancy gates new candidates. \textbf{Left:} aggregate mean over 18 eval tasks --- L1 improves monotonically $0.696 \to 0.714 \to 0.728$. \textbf{Right:} CUAD-only slice --- L1 improves $0.105 \to 0.170 \to 0.222$. Sessions 2 and 3 saw multiple promotions of new candidates rejected with reason \texttt{dominated} against prior cell occupants, confirming the persistent gating; session 3's L2 evolution rejected both candidates entirely (the search exhausted its budget without beating the prior best). The library has converged at this scale.}
 \label{fig:traj}
 \end{figure}
 
-\paragraph{Limitation: MAP-Elites archive does not persist between sessions.} The library carries forward, but the cell-occupancy map is rebuilt in-memory at every session start. Session~2's composite was therefore promoted as \texttt{novel\_cell} rather than gated against session~1's occupant. The fix is $\sim$15 lines (reload the archive from \texttt{composites.json} at startup, populate cells by recorded train F1) and is outlined in \texttt{JOURNAL.md}. The two-session trajectory we report is exactly what the demo produced; we are not back-filling fixed numbers.
-
-\subsection{Library lineage}
+\subsection{Library lineage and cross-domain population}
 \begin{figure}[h]
 \centering
 \includegraphics[width=0.95\linewidth]{figures/lineage.png}
-\caption{Persistent library after two sessions. Both occupants live in the same $(\text{legal}, \text{clause\_extraction})$ MAP-Elites cell; parent--child edges are empty because each was discovered as a one-step pipeline rather than a child of the other. Both are 1-step \texttt{clause\_extraction}; the second was promoted because the cell-occupancy bug treated it as novel. With archive persistence (Limitations, above), the second composite would have been gated against the first by train F1.}
+\caption{Persistent library after 3 legal-track sessions plus 1 Economics shallow session. Three MAP-Elites cells are populated: \texttt{(legal, legal\_qa)} for LegalBench-style classification; \texttt{(legal, clause\_extraction)} with subdomain \texttt{contract\_analysis} for CUAD; \texttt{(economics, financial\_qa)} from the cross-domain transfer. Parent--child edges are empty because each composite was discovered as a one-step pipeline rather than a child of another composite. The structural diversity here is what MAP-Elites buys us; without it the search would collapse on the highest-scoring cell.}
 \label{fig:lineage}
 \end{figure}
 
 \section{What surprised us, what failed}
 \begin{itemize}[leftmargin=1.2em]
-\item \textbf{Parametric mutation moved the needle more than expected.} Structural mutations on a 4B local model frequently produced syntactically valid but quality-degraded pipelines. Small parameter changes (e.g., \texttt{taxonomy="CUAD41"} $\to$ a 20-category subset, or nudging \texttt{min\_conf}) contributed disproportionately to fitness gains and were the operator we relied on most.
-\item \textbf{Self-judging is fragile at this scale.} Gemma judging Gemma's outputs is bimodal: confident $0.0$ or confident $1.0$ depending on whether the output looks like prose. The middle range is rare. As a fitness signal it is borderline noise; the deterministic CUAD F1 anchor carried the load.
-\item \textbf{Type system permissiveness is a real trade-off.} An initial strict design (3 coercions) had the search dead in the water --- most evolution-mutated pipelines failed validation. The final design has 14 coercions covering structured-output $\to$ Text/StructuredData. Pragmatism over purity, consciously chosen.
-\item \textbf{LM Studio's silent ${\sim}16$K-token generation cap.} The wrapper hard-caps at 8K; without that, long contracts truncate without an obvious failure mode.
-\item \textbf{Tools requiring two upstream inputs are evolution-hostile.} \texttt{compare(a, b, $\ldots$)} needs two; the linear-pipeline executor only feeds one. Resolved with a default empty \texttt{b} that makes the tool a no-op when no target is wired. The clean fix is a typed-DAG executor; out of scope for this iteration.
-\item \textbf{LegalBench was dropped from eval.} Many items in the loader had empty gold labels, which made the baseline match the gold by accidental token-overlap zero. The deterministic-scorer-into-evolution fix surfaced the issue and we removed LegalBench until label normalization is robust; SARA~\cite{cuad2021} is a cleaner replacement.
+\item \textbf{The agent converged on one-step pipelines.} L2 contract-analysis, L1 legal-QA, and L1 economics-QA are all single-primitive pipelines after evolution. Beam search proposed multi-step alternatives at every iteration (\texttt{add\_step}, \texttt{inject\_domain}); the deterministic anchor pruned them. The agent's value at this scale is parameter discovery and structural pruning rather than the invention of novel structure. We initially expected richer composites; we got the right answer instead.
+\item \textbf{Parametric mutation outperformed structural ones.} Across the four sessions, the operator that landed the largest fitness gains was \texttt{parametric\_mutate} on the existing primitives' parameters (\texttt{taxonomy="CUAD41"} variants, \texttt{min\_conf} thresholds, label sets). Structural mutations on a 4B local model frequently produced syntactically valid but quality-degraded pipelines.
+\item \textbf{Self-judging is fragile.} Gemma judging Gemma's outputs is bimodal: a confident $0.0$ for structured JSON or a confident $1.0$ for prose. As a fitness signal it is borderline noise; the deterministic CUAD F1 anchor carried the load.
+\item \textbf{LM Studio's silent ${\sim}16$K-token generation cap.} Wrapper hard-caps at 8K. Equally bitey: Gemma 4's analysis-channel/final-channel split eats tokens before the user-visible output emerges, so any \texttt{max\_tokens} budget tighter than ${\sim}1500$ on a non-trivial summarization returns empty text with \texttt{finish\_reason=length}. The bootstrap pass discovered this empirically; we now budget $1500$ for summarizers.
+\item \textbf{Type-system permissiveness is a real trade-off.} An initial strict design (3 coercions) had the search dead in the water; the final has 14 covering structured-output $\to$ Text/StructuredData. Pragmatism over purity, consciously chosen.
+\item \textbf{Internet-search starvation, then recovery.} The first cycle of sessions ran with no API keys, and the bootstrap brief came back empty. We added Wikipedia full-text search, Semantic Scholar, and OpenAlex (all key-free), plus a \texttt{Text}-to-\texttt{Query} bridge primitive and an LLM query-rewrite retry loop. The bootstrap now produces real domain-grounding paragraphs (verified live) without any credentials.
 \end{itemize}
 
 \section{What we would do with more time}
 \begin{enumerate}[leftmargin=1.2em]
-\item Persist the MAP-Elites archive between sessions; populate cells from \texttt{composites.json} at startup.
-\item Replace beam search with AFlow-style code-MCTS~\cite{aflow2024}; keep MAP-Elites for diversity.
+\item Replace beam search with AFlow-style code-MCTS~\cite{aflow2024} where typed signatures still gate moves; keep MAP-Elites for diversity.
 \item Train a small process-reward model~\cite{agentprm2025} on in-house labels for step-wise scoring instead of an LLM rubric.
 \item Pull a frozen post-cutoff held-out set from EDGAR + recent CourtListener opinions to harden against contamination.
-\item Run the same protocol with an external judge (Anthropic / OpenAI) on the final pairwise table, as the implemented fallback chain promises.
-\item Run the Economics shallow track that the spec calls for (the tools are wired; we ran out of time before the headline runs).
+\item Run with an external pairwise judge (Anthropic / OpenAI), as the implemented fallback chain promises.
+\item Replace the LegalBench micro-slice with SARA (Statutory Reasoning Assessment) for cleaner gold labels.
 \item Replicate on a 7B-class local model to quantify the size-vs-evolution trade-off.
 \end{enumerate}
 
