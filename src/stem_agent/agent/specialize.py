@@ -126,6 +126,7 @@ def run_phase_for_task(
         domain_brief=domain_brief_text,
         composites_summary=_composites_summary(library, task.domain),
         layer=layer,
+        capability_tag=task.capability_tag,
     )
     fit = make_fitness_fn(task=task, library=library, judge=judge,
                           deterministic_score=deterministic_score)

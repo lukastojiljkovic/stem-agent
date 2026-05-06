@@ -8,11 +8,16 @@ Used to gate promotion of candidate composite pipelines. Acceptance rule:
 
 This guarantees structural diversity in the persistent library and mitigates
 mode collapse on a single mega-pipeline.
+
+The archive is rebuilt at session start by `from_composites()`, which scans the
+loaded ToolLibrary's composites and populates each cell with the existing best
+occupant by recorded train F1. This makes cell occupancy persistent across
+sessions even though the `_cells` dict itself is in-memory.
 """
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Iterable
 
 EPS = 1e-9
 
@@ -60,3 +65,24 @@ class MAPElitesArchive:
 
     def cells(self) -> dict[tuple[str, str], tuple[str, float]]:
         return dict(self._cells)
+
+    @classmethod
+    def from_composites(cls, composites: Iterable[dict[str, Any]]) -> "MAPElitesArchive":
+        """Rebuild the archive from a list of persisted composites. Each cell is
+        populated with the highest-scoring composite seen for that (domain, capability)
+        pair, using the latest entry in `metrics_history`."""
+        arc = cls()
+        for c in composites:
+            cid = c.get("id")
+            if not cid:
+                continue
+            history = c.get("metrics_history") or []
+            score = max(
+                (m.get("score") or m.get("f1") or m.get("step_avg") or 0.0 for m in history),
+                default=0.0,
+            )
+            key = arc.cell_key(c)
+            cur = arc._cells.get(key)
+            if cur is None or score > cur[1]:
+                arc._cells[key] = (cid, score)
+        return arc

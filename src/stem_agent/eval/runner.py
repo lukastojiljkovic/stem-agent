@@ -85,9 +85,15 @@ def _load_tasks(domain: str, subdomain: str | None, track: str) -> list[TaskSpec
     tasks: list[TaskSpec] = []
     if domain == "legal":
         tasks += load_cuad_tasks()
-        # LegalBench currently dropped from the eval set: many items have empty
-        # gold labels that make the baseline match by accident, so the metric
-        # is uninformative. Re-enable when we have a robust label normalizer.
+        # LegalBench: now usable because the deterministic scorer
+        # (score_classification_accuracy) is wired into the evolution fitness,
+        # which steers the search toward producing yes/no labels rather than
+        # structured Clauses dicts. We filter out items whose gold label is
+        # empty (loader artifact) so they cannot be matched by accident.
+        for t in load_legalbench_tasks():
+            gold = (t.reference or {}).get("label", "")
+            if isinstance(gold, str) and gold.strip():
+                tasks.append(t)
     if domain == "economics":
         tasks += load_ratio_tasks()
         tasks += load_financebench_tasks()
@@ -115,7 +121,11 @@ def run_full(*, domain: str, subdomain: str | None, track: str, seed: int,
     library = ToolLibrary(PATHS.tool_library)
     register_all(library)
     library.load()
-    archive = MAPElitesArchive()
+    # Rebuild the archive from persisted composites so cell occupancy carries
+    # across sessions: a new candidate must strictly dominate the prior occupant
+    # (or land in an empty cell) to be promoted.
+    archive = MAPElitesArchive.from_composites(library.composites.values())
+    log_info(f"archive seeded with {len(archive.cells())} occupied cell(s) from {len(library.composites)} prior composites")
     lm = LMClient()
     judge = JudgeClient()
 

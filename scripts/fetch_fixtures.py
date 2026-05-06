@@ -135,6 +135,71 @@ def _hand_legal_fixtures() -> None:
                 "Anti-Assignment":["may not be assigned by Consultant without Theta's prior written consent"],
             },
         },
+        "synth_distribution_6": {
+            "text": ("Distribution Agreement between Iota Trading and Kappa Wholesale, effective April 5, 2026. "
+                     "This Agreement is governed by the laws of the Republic of Singapore. "
+                     "Distributor may terminate this Agreement at its convenience upon ninety (90) calendar days prior written notice to Supplier. "
+                     "Supplier's total liability under this Agreement shall under no circumstances exceed two million euros (\\u20ac2,000,000) in the aggregate. "
+                     "Neither party may assign this Agreement or any of its rights or obligations hereunder without the prior written consent of the other, such consent not to be unreasonably withheld."),
+            "gold": {
+                "Governing Law":["governed by the laws of the Republic of Singapore"],
+                "Termination for Convenience":["terminate this Agreement at its convenience upon ninety (90) calendar days prior written notice"],
+                "Cap on Liability":["total liability under this Agreement shall under no circumstances exceed two million euros"],
+                "Anti-Assignment":["Neither party may assign this Agreement or any of its rights or obligations hereunder without the prior written consent of the other"],
+            },
+        },
+        "synth_employment_7": {
+            "text": ("Employment Agreement between Lambda Corp. and the Employee, effective May 12, 2026. "
+                     "This Agreement shall be governed exclusively by the laws of the State of Texas. "
+                     "Either Lambda Corp. or the Employee may terminate this Agreement for any reason or no reason upon thirty (30) days written notice to the other party. "
+                     "In no event shall Lambda Corp.'s liability under this Agreement exceed one year of the Employee's then-current base salary. "
+                     "The Employee may not assign this Agreement or any duties hereunder to any other person."),
+            "gold": {
+                "Governing Law":["governed exclusively by the laws of the State of Texas"],
+                "Termination for Convenience":["terminate this Agreement for any reason or no reason upon thirty (30) days written notice"],
+                "Cap on Liability":["liability under this Agreement exceed one year of the Employee's then-current base salary"],
+                "Anti-Assignment":["may not assign this Agreement or any duties hereunder"],
+            },
+        },
+        "synth_saas_8": {
+            "text": ("Software-as-a-Service Subscription Agreement, dated June 1, 2026, between Mu Cloud Services and Customer. "
+                     "This Agreement and any disputes arising hereunder shall be governed by and interpreted under the laws of the State of Washington. "
+                     "Customer may cancel the subscription at any time without cause, effective at the end of the then-current billing period. "
+                     "Provider's maximum aggregate liability arising out of or relating to this Agreement shall not exceed the fees paid by Customer in the trailing twelve (12) months. "
+                     "Customer shall not assign, transfer, or sublicense this Agreement, in whole or in part, without the prior written consent of Provider."),
+            "gold": {
+                "Governing Law":["governed by and interpreted under the laws of the State of Washington"],
+                "Termination for Convenience":["cancel the subscription at any time without cause"],
+                "Cap on Liability":["maximum aggregate liability arising out of or relating to this Agreement shall not exceed the fees paid by Customer in the trailing twelve (12) months"],
+                "Anti-Assignment":["shall not assign, transfer, or sublicense this Agreement, in whole or in part, without the prior written consent of Provider"],
+            },
+        },
+        "synth_partnership_9": {
+            "text": ("Limited Partnership Agreement among Nu Capital Partners, Xi Holdings, and Omicron Investments, executed July 20, 2026. "
+                     "This Agreement is to be construed in accordance with and governed by the laws of the State of New Jersey. "
+                     "Any limited partner may withdraw from the partnership at its convenience upon one hundred eighty (180) days advance written notice to the General Partner. "
+                     "The General Partner's aggregate cumulative liability to the limited partners shall not exceed three million U.S. dollars (\\$3,000,000). "
+                     "The interests of the limited partners may not be assigned, pledged, or transferred without the General Partner's prior written approval."),
+            "gold": {
+                "Governing Law":["construed in accordance with and governed by the laws of the State of New Jersey"],
+                "Termination for Convenience":["withdraw from the partnership at its convenience upon one hundred eighty (180) days advance written notice"],
+                "Cap on Liability":["aggregate cumulative liability to the limited partners shall not exceed three million U.S. dollars"],
+                "Anti-Assignment":["may not be assigned, pledged, or transferred without the General Partner's prior written approval"],
+            },
+        },
+        "synth_reseller_10": {
+            "text": ("Reseller Agreement between Pi Software Inc. and Rho Resellers Ltd., effective August 8, 2026. "
+                     "This Agreement and the rights and obligations of the parties shall be governed by the laws of the Province of Ontario, Canada. "
+                     "Reseller may terminate this Agreement for convenience upon sixty (60) days prior written notice to Pi Software Inc. "
+                     "In no event shall Pi Software Inc.'s aggregate liability arising under this Agreement exceed five hundred thousand Canadian dollars (CAD \\$500,000). "
+                     "This Agreement may not be assigned by Reseller, by operation of law or otherwise, without the express prior written consent of Pi Software Inc."),
+            "gold": {
+                "Governing Law":["governed by the laws of the Province of Ontario, Canada"],
+                "Termination for Convenience":["terminate this Agreement for convenience upon sixty (60) days prior written notice"],
+                "Cap on Liability":["aggregate liability arising under this Agreement exceed five hundred thousand Canadian dollars"],
+                "Anti-Assignment":["may not be assigned by Reseller, by operation of law or otherwise, without the express prior written consent of Pi Software Inc."],
+            },
+        },
     }
     for cid, data in contracts.items():
         (FIX / "contracts" / f"{cid}.txt").write_text(data["text"], encoding="utf-8")

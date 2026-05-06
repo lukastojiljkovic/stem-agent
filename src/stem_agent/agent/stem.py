@@ -130,6 +130,7 @@ def propose_seed_pipeline(
     domain_brief: str = "",
     composites_summary: str = "",
     layer: str = "stem",
+    capability_tag: str | None = None,
 ) -> Pipeline:
     """Ask the LLM for a 1-5 step pipeline; fall back to a hand-coded baseline on invalid output."""
     sys_name = {
@@ -189,13 +190,29 @@ def propose_seed_pipeline(
     ok, msg = validate(p, registry, task_input_type)
     if not ok:
         log_decision(f"seed proposal invalid ({msg}); using fallback")
-        return _fallback(layer, library, task_input_type)
+        return _fallback(layer, library, task_input_type, capability_tag)
     log_decision(f"seed pipeline accepted ({len(p)} steps)")
     return p
 
 
-def _fallback(layer: str, library: ToolLibrary, input_type: TypeName) -> Pipeline:
-    """Hand-coded minimum pipelines, gated by input_type so the result is valid."""
+def _fallback(layer: str, library: ToolLibrary, input_type: TypeName,
+              capability_tag: str | None = None) -> Pipeline:
+    """Hand-coded minimum pipelines, gated by (capability_tag, input_type, layer) so the
+    result is type-valid AND uses the appropriate primitive for the task family."""
+    cap = capability_tag or ""
+    # Capability-driven: dispatches first on what the task is asking for.
+    if cap == "legal_qa":
+        return Pipeline([PipelineStep("classify", {"labels": ["Yes", "No"]})])
+    if cap == "obligation":
+        return Pipeline([PipelineStep("obligation_detection")])
+    if cap == "financial_ratios":
+        return Pipeline([PipelineStep("edgar_fetch"), PipelineStep("financial_ratios")])
+    if cap == "financial_qa":
+        return Pipeline([PipelineStep("edgar_fetch"), PipelineStep("summarize")])
+    if cap == "clause_extraction":
+        return Pipeline([PipelineStep("clause_extraction"), PipelineStep("summarize")])
+
+    # Capability unknown: fall through to type/layer heuristics.
     if input_type == TypeName.QUERY:
         if layer == "economics":
             return Pipeline([PipelineStep("edgar_fetch"), PipelineStep("financial_ratios")])
