@@ -1,0 +1,77 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[margin=0.95in]{geometry}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{enumitem}
+\usepackage[expansion=false]{microtype}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\hypersetup{colorlinks=true, urlcolor=blue, linkcolor=black}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{4pt}
+
+\title{\bfseries Stem Agent: A Pluripotent LLM Agent that\\Differentiates by Composing Typed Tools}
+\author{Luka Stojiljkovi\'c}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\section{Approach}
+We treat agent specialization as \textit{differentiation}: a minimal pluripotent agent (L0) reads environmental signals from the target domain, then commits to a fate by accreting domain-tagged tools and pruning irrelevant ones. The agent never writes code; it composes, mutates, and reorders typed tools from a persistent library. Successful pipelines graduate to named \textit{composite tools} that survive across sessions, so the system improves between runs as well as within them. The framing is anchored in three lineages: lifelong skill libraries (Voyager~\cite{voyager2023}), LLM-driven program evolution (FunSearch~\cite{funsearch2023}, AlphaEvolve~\cite{alphaevolve2025}), and developmental morphogenesis (Growing Neural Cellular Automata~\cite{growingnca2020}; \textit{Engineering Morphogenesis}~\cite{morphdiff2025}). The combination --- typed pipelines, MAP-Elites archive over $(\text{domain} \times \text{capability})$, and step-wise process scoring --- is, to our knowledge, novel.
+
+\paragraph{Core architecture.} Five layers: (i) a Rich console as the primary UI plus an opt-in Streamlit dashboard reading the same JSONL event stream; (ii) an agent layer with a \texttt{StemAgent} (bootstrapping, seed proposal) and an evolution driver (beam search with six mutation operators including \emph{parametric}, with rollback-to-snapshot); (iii) a typed Tool Library with hybrid (symbolic + embedding) retrieval and a MAP-Elites cell archive; (iv) an LLM layer with a local Gemma~4 E4B via LM Studio plus a fallback judge chain (Anthropic > OpenAI > local); (v) a FROZEN universal toolset (LaTeX builder, grammar check, PDF compile) reserved for final answer rendering and explicitly excluded from evolution candidate sets.
+
+\paragraph{Step-wise process scoring.} Every step in a candidate pipeline is scored by a deterministic consistency heuristic plus an LLM rubric (quality and domain-relevance). Cumulative recurrence $c_k = \alpha c_{k-1} + \beta s_k$ rewards consistent improvement and penalizes early bad steps; the final pipeline score combines the per-step mean, final-output quality, and a complexity penalty. Pipelines whose step score drops below a threshold are early-terminated, conserving compute. This design draws on process reward models~\cite{agentprm2025} and the diversity-preserving discipline of quality-diversity search~\cite{mapelitesai2024}.
+
+\paragraph{Promotion gate.} A candidate composite is promoted iff (a) it improves over its parent on the dev set by $\geq 2$ points, (b) it does not regress any item in the held-out regression suite, and (c) it is novel under MAP-Elites or strictly Pareto-dominates the current cell occupant. Skills are stored as code (typed pipeline JSON), never deleted; new versions become children with explicit lineage links --- the catastrophic-forgetting mitigation Voyager validates~\cite{voyager2023}.
+
+\section{Experiments}
+We ran one deep track (Legal $\rightarrow$ Contract Analysis on a CUAD-style micro-subset~\cite{cuad2021} and a LegalBench micro-slice~\cite{legalbench2023}) and a shallow transfer track (Economics $\rightarrow$ Financial Reporting on EDGAR ratios and a FinanceBench-style QA micro-slice~\cite{financebench2023}). Each task is partitioned into a library-construction subset and a frozen evaluation subset; reported numbers are the latter.
+
+\subsection{Headline result: baseline vs L1 vs L2}
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.62\linewidth]{figures/bar_levels.pdf}
+\caption{Mean score across the held-out evaluation set per level for the latest legal-track session. \textbf{Baseline} is the spec's hand-coded \texttt{clause\_extraction} $\rightarrow$ \texttt{summarize}. \textbf{L1} is the best L1-promoted composite per capability tag. \textbf{L2} is the best L2-promoted composite (Contract Analysis) where applicable.}
+\label{fig:bars}
+\end{figure}
+
+\subsection{Cross-session improvement}
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.62\linewidth]{figures/cross_session.pdf}
+\caption{Trajectory of mean evaluation score across three sequential sessions. The persisted tool library carries forward; new composites graduated in run~$i$ become candidates in run~$i+1$, demonstrating ``between-session'' improvement without weight updates.}
+\label{fig:traj}
+\end{figure}
+
+\subsection{Library lineage}
+The persistent library after the cross-session run shows a small set of $(\text{domain}, \text{capability})$ MAP-Elites cells, each occupied by the highest-scoring composite of its kind, with explicit parent$\rightarrow$child edges to its predecessor. The lineage diagram is rendered to \texttt{tool\_library/lineage.dot}; in this submission \texttt{report/figures/lineage.png} captures the state at the end of the cross-session run.
+
+\section{What surprised us / what failed}
+\begin{itemize}[leftmargin=1.2em]
+\item \textbf{Parametric mutation moved the needle more than expected.} On a 4B-parameter local model, structural mutations frequently produced syntactically valid but quality-degraded pipelines; small parameter changes (e.g., \texttt{taxonomy="CUAD41"} $\rightarrow$ a focused 20-category subset, or raising \texttt{min\_conf} on \texttt{clause\_extraction}) contributed disproportionately to fitness gains.
+\item \textbf{Self-judging is fragile at this scale.} Gemma-judging-Gemma drifted within a few iterations toward verbose, padding-rich outputs (a self-preference effect~\cite{selfprefbias2024}). Anchoring the fitness on deterministic checks (clause-F1, ratio tolerance) was essential; the LLM rubric became a tie-breaker, not the primary signal.
+\item \textbf{LM Studio's silent generation cap (${\sim}16$K tokens) bit us.} Capping our wrapper at 8K plus an explicit step budget made the system stable on long contracts.
+\item \textbf{Scanned PDFs broke the pipeline silently.} A non-empty-text assertion downstream of \texttt{pdf\_extract} surfaced this immediately; without it, F1 dropped without an obvious cause.
+\item \textbf{LegalBench micro-slice dragged the average down.} The 4B agent struggles with multi-doctrine classification; we kept it in the report rather than cherry-picking, since the spec's ``honest reporting'' gate requires it.
+\end{itemize}
+
+\section{What we would do with more time}
+\begin{enumerate}[leftmargin=1.2em]
+\item Replace beam search with AFlow-style code-MCTS~\cite{aflow2024} where typed signatures still gate moves; keep MAP-Elites for diversity.
+\item Train a small process-reward model on in-house labels for step-wise scoring instead of an LLM rubric.
+\item Pull a frozen post-cutoff held-out set from EDGAR + recent CourtListener opinions to harden against contamination.
+\item Extend the universal toolset with a bibliography / citation tool so the agent's PDF answers can cite primary sources verifiably.
+\item Run the same protocol on a 7B-class local model (Llama-3.1-8B or Qwen-2.5-7B) to quantify the size-vs-evolution trade-off.
+\end{enumerate}
+
+\paragraph{Code, data, and reproducibility.} Repository: \url{https://github.com/lukastojiljkovic/stem-agent}. Setup: \texttt{pip install -e .[dashboard,dev]}; load Gemma~4 E4B in LM Studio; run \texttt{python -m stem\_agent run --domain legal --subdomain contract\_analysis --track deep}. Fixtures regenerable via \texttt{python scripts/fetch\_fixtures.py}.
+
+\bibliographystyle{plain}
+\bibliography{refs}
+
+\end{document}
