@@ -242,9 +242,8 @@ def edgar_fetch(ticker: str, form: str = "10-K", year: int | None = None) -> dic
     out: dict[str, Any] = {"ticker": ticker, "form": form, "accession": "", "text": "", "xbrl_facts": {}}
     try:
         from edgar import set_identity, Company
-        # SEC requires a contact User-Agent. The default email is example.com,
-        # which SEC accepts (RFC 2606 reserved); users with heavy use should set
-        # EDGAR_USER_AGENT to their real contact info.
+        # SEC requires a contact User-Agent. example.com is RFC 2606 reserved
+        # and SEC accepts it; heavy users should set EDGAR_USER_AGENT to a real address.
         set_identity(os.environ.get("EDGAR_USER_AGENT", "Stem Agent contact@example.com"))
         c = Company(ticker)
         filings = c.get_filings(form=form)
@@ -253,22 +252,22 @@ def edgar_fetch(ticker: str, form: str = "10-K", year: int | None = None) -> dic
                 filings = filings.filter(date=f"{year}-01-01:{year}-12-31")
             except Exception:
                 pass
-        if not filings:
-            return out
-        f = filings.latest()
-        out["accession"] = getattr(f, "accession_number", "") or ""
+        if filings:
+            f = filings.latest()
+            out["accession"] = getattr(f, "accession_number", "") or ""
+            try:
+                # `text()` was the old edgartools API; current API exposes
+                # `markdown` or attachment iteration. Try both gracefully.
+                txt_fn = getattr(f, "text", None) or getattr(f, "markdown", None)
+                out["text"] = (txt_fn() if callable(txt_fn) else "")[:20000]
+            except Exception:
+                out["text"] = ""
+        # XBRL facts come from the *entity* facts API in current edgartools
+        # (Company.get_facts() -> EntityFacts), NOT from the filing object's
+        # `.financials` attribute (which was removed in recent versions).
         try:
-            out["text"] = (f.text() or "")[:20000]
-        except Exception:
-            out["text"] = ""
-        try:
-            obj = f.obj()
-            fin = getattr(obj, "financials", None) if obj is not None else None
-            if fin is not None:
-                facts: dict[str, float | None] = {}
-                for label, names in _XBRL_CONCEPT_ALIASES.items():
-                    facts[label] = _try_concept_chain(fin, names)
-                out["xbrl_facts"] = facts
+            facts_api = c.get_facts()
+            out["xbrl_facts"] = _extract_facts_via_api(facts_api)
         except Exception as e:
             log_warn(f"EDGAR XBRL extraction failed: {e}")
     except Exception as e:
@@ -276,6 +275,89 @@ def edgar_fetch(ticker: str, form: str = "10-K", year: int | None = None) -> dic
         out["error"] = str(e)
     EDGAR_CACHE.put(payload, out)
     return out
+
+
+def _extract_facts_via_api(facts_api: Any) -> dict[str, float | None]:
+    """Use EntityFacts' canonical helpers (get_revenue, get_net_income, ...)
+    when available; fall back to `get_concept` for facts without a helper."""
+    helpers: list[tuple[str, str]] = [
+        ("revenue", "get_revenue"),
+        ("net_income", "get_net_income"),
+        ("total_assets", "get_total_assets"),
+        ("stockholders_equity", "get_shareholders_equity"),
+        ("operating_income", "get_operating_income"),
+    ]
+    facts: dict[str, float | None] = {}
+    for label, method_name in helpers:
+        m = getattr(facts_api, method_name, None)
+        v: Any = None
+        if callable(m):
+            try:
+                v = m()
+            except Exception:
+                v = None
+        facts[label] = _coerce_float(v)
+    # No top-level helpers for these; walk get_concept directly using
+    # edgartools' canonical concept names (lowercase snake_case, NOT raw
+    # us-gaap:... tags). get_concept returns the value directly when a
+    # canonical name resolves; we wrap it through _coerce_float defensively.
+    for label, concepts in [
+        ("current_assets", ["total_current_assets"]),
+        ("current_liabilities", ["total_current_liabilities"]),
+        ("total_liabilities", ["total_liabilities"]),
+        ("cash_from_ops", ["operating_cash_flow"]),
+    ]:
+        v = None
+        for c in concepts:
+            v = _entity_concept_value(facts_api, c)
+            if v is not None:
+                break
+        facts[label] = _coerce_float(v)
+    return facts
+
+
+def _entity_concept_value(facts_api: Any, concept: str) -> Any:
+    """Extract a numeric value for a concept. edgartools' get_concept may
+    return either (a) a raw number for canonical concept names like
+    'total_current_assets', or (b) a Concept-like object whose value lives at
+    one of several attributes; we handle both."""
+    fn = getattr(facts_api, "get_concept", None)
+    if not callable(fn):
+        return None
+    import warnings
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            result = fn(concept)
+    except Exception:
+        return None
+    if result is None:
+        return None
+    if isinstance(result, (int, float)):
+        return result
+    for attr in ("latest_value", "annual_value", "value"):
+        v = getattr(result, attr, None)
+        if callable(v):
+            try: v = v()
+            except Exception: v = None
+        if v is not None:
+            return v
+    facts_attr = getattr(result, "facts", None)
+    if not facts_attr:
+        return None
+    annuals = [f for f in facts_attr if getattr(f, "fiscal_period", None) == "FY"] or list(facts_attr)
+    if not annuals:
+        return None
+    return getattr(annuals[-1], "value", None)
+
+
+def _coerce_float(v: Any) -> float | None:
+    if v is None:
+        return None
+    try:
+        return float(v)
+    except Exception:
+        return None
 
 
 def _try_value(financials, concept: str) -> float | None:

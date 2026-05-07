@@ -150,6 +150,16 @@ def run_full(*, domain: str, subdomain: str | None, track: str, seed: int,
     log = session_log(session_id, PATHS.runs)
     log.emit("session.start", session_id=session_id, domain=domain, subdomain=subdomain, track=track)
 
+    # Refuse to start if LM Studio isn't reachable. This avoids the
+    # confusing mid-pipeline ConnectionError surfaced halfway through Phase 1
+    # when the user forgot to start the server.
+    lm = LMClient()
+    ok, msg = lm.health_check(timeout_s=5.0)
+    if not ok:
+        log_info(f"[fatal] {msg}")
+        log.emit("session.fatal", reason=msg); log.close()
+        return 2
+
     library = ToolLibrary(PATHS.tool_library)
     register_all(library)
     library.load()
@@ -157,11 +167,11 @@ def run_full(*, domain: str, subdomain: str | None, track: str, seed: int,
     # across sessions: a new candidate must strictly dominate the prior occupant
     # (or land in an empty cell) to be promoted.
     archive = MAPElitesArchive.from_composites(library.composites.values())
+    log_info(f"LM Studio reachable: {msg}")
     log_info(f"archive seeded with {len(archive.cells())} occupied cell(s) from {len(library.composites)} prior composites")
 
     reflections = ReflectionsStore(PATHS.tool_library / "reflections.json")
     log_info(f"reflections loaded: {sum(len(v) for v in (reflections._data or {}).values())} total snippets across cells")
-    lm = LMClient()
     judge = JudgeClient()
 
     tasks = _load_tasks(domain, subdomain, track)
@@ -336,4 +346,86 @@ def show_library(*, lineage: bool) -> int:
     if lineage:
         write_dot(library.composites.values(), PATHS.tool_library / "lineage.dot")
         log_info(f"lineage written to {PATHS.tool_library / 'lineage.dot'}")
+    return 0
+
+
+def inspect_session(*, session_id: str) -> int:
+    """Dump a session's metrics, promoted composites, and bootstrap brief."""
+    if session_id == "latest":
+        candidates = sorted([p for p in PATHS.runs.iterdir()
+                             if p.is_dir() and not p.name.startswith("_")],
+                            key=lambda p: p.stat().st_mtime, reverse=True)
+        if not candidates:
+            log_info("No sessions found under runs/.")
+            return 1
+        session_dir = candidates[0]
+        session_id = session_dir.name
+    else:
+        session_dir = PATHS.runs / session_id
+        if not session_dir.exists():
+            log_info(f"Session {session_id} not found under {PATHS.runs}")
+            return 1
+
+    log_info(f"=== session {session_id} ===")
+    metrics_path = session_dir / "metrics.json"
+    if metrics_path.exists():
+        m = json.loads(metrics_path.read_text(encoding="utf-8"))
+        for level in ("baseline", "L1", "L2"):
+            rows = m.get(level, [])
+            if not rows:
+                continue
+            mean = sum(r.get("score", 0.0) for r in rows) / max(1, len(rows))
+            log_info(f"{level}: n={len(rows)} mean={mean:.3f}")
+    else:
+        log_info("(no metrics.json)")
+
+    archive_dir = PATHS.tool_library / "archive" / session_id
+    snap = archive_dir / "composites.json"
+    if snap.exists():
+        comps = json.loads(snap.read_text(encoding="utf-8"))
+        log_info(f"composites snapshot: {len(comps)}")
+        for c in comps:
+            sc = (c.get("metrics_history") or [{}])[-1].get("score", 0)
+            steps = " -> ".join(s.get("tool", "?") for s in (c.get("steps") or []))
+            log_info(f"  {c['id']}  cell=({c.get('domain','-')}/{c.get('capability_tag','-')})  score={sc:.3f}  steps={steps}")
+    else:
+        log_info("(no archived snapshot for this session)")
+
+    brief = session_dir / "domain_brief.md"
+    if brief.exists():
+        text = brief.read_text(encoding="utf-8").strip()
+        if text and text != "(no domain brief available)":
+            log_info(f"domain_brief.md ({len(text)} chars; first 240):")
+            log_info("  " + text[:240].replace("\n", "\n  "))
+    return 0
+
+
+def reset_library(*, skip_confirm: bool = False) -> int:
+    """Empty composites.json (and the embeddings sidecar) with confirmation.
+    primitives.json, archive/ and reflections.json are left untouched."""
+    composites_path = PATHS.tool_library / "composites.json"
+    embeds_path = PATHS.tool_library / "embeddings.json"
+    if not composites_path.exists():
+        log_info("No composites.json to reset.")
+        return 0
+    try:
+        n = len(json.loads(composites_path.read_text(encoding="utf-8")) or [])
+    except Exception:
+        n = 0
+    if n == 0:
+        log_info("composites.json is already empty.")
+        return 0
+    if not skip_confirm:
+        prompt = f"This will delete {n} composite(s) from {composites_path}. Type 'yes' to confirm: "
+        try:
+            answer = input(prompt).strip().lower()
+        except EOFError:
+            answer = ""
+        if answer != "yes":
+            log_info("Aborted.")
+            return 1
+    composites_path.write_text("[]\n", encoding="utf-8")
+    if embeds_path.exists():
+        embeds_path.write_text("{}\n", encoding="utf-8")
+    log_info(f"Library reset: deleted {n} composites. Archive snapshots and reflections preserved.")
     return 0

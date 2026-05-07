@@ -56,14 +56,41 @@ class ChatResult:
 _MAX_TOKENS_HARD_CAP = 8192
 
 
+class LMStudioUnreachableError(RuntimeError):
+    """Raised by `LMClient.health_check()` when the LM Studio server isn't responding.
+    The runner uses this to print a clean error and refuse to start the run rather
+    than crash mid-pipeline with a generic ConnectionError."""
+
+
 class LMClient:
     def __init__(self, base_url: str | None = None, api_key: str | None = None,
                  timeout: float | None = None):
+        self.base_url = base_url or LM.base_url
         self._client = OpenAI(
-            base_url=base_url or LM.base_url,
+            base_url=self.base_url,
             api_key=api_key or LM.api_key,
             timeout=timeout if timeout is not None else LM.request_timeout_s,
         )
+
+    def health_check(self, timeout_s: float = 5.0) -> tuple[bool, str]:
+        """Confirm the LM Studio server is reachable. Returns (ok, message).
+        On the happy path, returns (True, "<loaded model id>"). On failure,
+        returns (False, "<actionable error message>") with no exception thrown."""
+        try:
+            import requests
+            r = requests.get(f"{self.base_url}/models", timeout=timeout_s)
+            if r.status_code != 200:
+                return False, f"HTTP {r.status_code} from {self.base_url}/models"
+            data = r.json().get("data") or []
+            if not data:
+                return False, "LM Studio reachable but no models loaded"
+            return True, str(data[0].get("id") or "(unknown model)")
+        except Exception as e:
+            return False, (
+                f"LM Studio not reachable at {self.base_url} ({type(e).__name__}: {e}). "
+                f"Is the server running? Start LM Studio and load a Gemma 4 E4B GGUF, "
+                f"or set the base URL via the LMClient(base_url=...) argument."
+            )
 
     @retry(
         stop=stop_after_attempt(3),

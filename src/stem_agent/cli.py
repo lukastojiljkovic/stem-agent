@@ -28,9 +28,17 @@ def main(argv: list[str] | None = None) -> int:
     p_show = sub.add_parser("library", help="Show the persisted tool library summary.")
     p_show.add_argument("--lineage", action="store_true", help="Also write/refresh lineage.dot.")
 
+    p_inspect = sub.add_parser("inspect", help="Dump a session's metrics, composites, and reflections.")
+    p_inspect.add_argument("session_id", help="Directory name under runs/ (or 'latest' for the most recent).")
+
+    p_reset = sub.add_parser("reset",
+                              help="Delete tool_library/composites.json (with confirmation prompt).")
+    p_reset.add_argument("--yes", action="store_true",
+                         help="Skip the confirmation prompt; do the reset.")
+
     args = p.parse_args(argv)
 
-    from .eval.runner import run_full, run_baseline_only, show_library
+    from .eval.runner import run_full, run_baseline_only, show_library, inspect_session, reset_library
 
     if args.cmd == "run":
         return run_full(domain=args.domain, subdomain=args.subdomain,
@@ -40,6 +48,10 @@ def main(argv: list[str] | None = None) -> int:
         return run_baseline_only(domain=args.domain)
     if args.cmd == "library":
         return show_library(lineage=args.lineage)
+    if args.cmd == "inspect":
+        return inspect_session(session_id=args.session_id)
+    if args.cmd == "reset":
+        return reset_library(skip_confirm=args.yes)
     return 1
 
 

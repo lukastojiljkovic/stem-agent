@@ -56,6 +56,21 @@ python -m stem_agent baseline --domain legal
 
 # Show the persisted library
 python -m stem_agent library --lineage
+
+# Inspect a finished session (metrics, promoted composites, bootstrap brief)
+python -m stem_agent inspect latest          # or a specific session id
+
+# Wipe the composite library (preserves archive snapshots + reflections)
+python -m stem_agent reset --yes
+```
+
+### Cross-run trajectory report
+
+```bash
+# Walks every runs/<session>/metrics.json, builds a markdown summary table
+# plus trajectory.csv + trajectory.pdf in runs/_aggregate/<ts>/
+python scripts/aggregate_runs.py            # all sessions
+python scripts/aggregate_runs.py --domain legal
 ```
 
 ### Cross-session demo (3 back-to-back sessions)
@@ -124,4 +139,4 @@ Apache 2.0. See `LICENSE`. The CUAD subset is CC-BY 4.0 (Atticus Project).
 
 ## Engineering process
 
-This project was written in tight collaboration with Claude (Opus 4.7) via Claude Code: human engineer doing the design and verification, AI doing the heavy editing and mechanical synthesis. See `JOURNAL.md` for the running diary — including the bumps.
+This project was written in tight collaboration with Claude (Opus 4.7) via Claude Code: human engineer doing the design and verification, AI doing the heavy editing and mechanical synthesis. See `JOURNAL.md` for the running diary — including the bumps. `CHANGELOG.md` is the executive summary across the four iteration passes (51 → 88 → 91 unit tests).

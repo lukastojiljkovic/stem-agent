@@ -72,11 +72,34 @@ def consider_promotion(
     decision = archive.evaluate_for_promotion(
         comp, parent_score=parent_score, score=score, improvement_min=improvement_min,
     )
+    # Promotion gate is a 3-condition rule: (1) strict improvement over parent,
+    # (2) no regression on regression suite [enforced upstream of this call],
+    # (3) MAP-Elites novelty-or-domination. Log which condition fired so the
+    # operator can see at a glance why a particular candidate was/wasn't promoted.
+    cell = archive.cell_key(comp)
+    occupant = archive.cells().get(cell)
     if decision.accepted:
-        log_decision(f"PROMOTE: {comp['id']} ({decision.reason}) score={score:.3f}")
+        if decision.reason == "novel_cell":
+            condition = "[gate-3 NOVEL] cell empty"
+        elif decision.reason == "dominator":
+            condition = (f"[gate-3 DOMINATE] beat occupant {decision.replaced} "
+                         f"(prior score {occupant[1]:.3f} when checked)" if occupant else
+                         "[gate-3 DOMINATE] replaced prior occupant")
+        else:
+            condition = f"[accepted: {decision.reason}]"
+        log_decision(f"PROMOTE: {comp['id']} cell={cell} score={score:.3f} parent={parent_score:.3f}  {condition}")
         if decision.replaced and decision.replaced in library.composites:
             del library.composites[decision.replaced]
         library.register_composite(comp)
         return decision, comp
-    log_decision(f"reject promote: {decision.reason} score={score:.3f}")
+    if decision.reason == "no_improvement":
+        condition = (f"[gate-1 NO-IMPROVEMENT] score {score:.3f} did not exceed "
+                     f"parent {parent_score:.3f} by required +{improvement_min:.2f}")
+    elif decision.reason == "dominated":
+        condition = (f"[gate-3 DOMINATED] cell already occupied by {occupant[0]} "
+                     f"with score {occupant[1]:.3f}" if occupant else
+                     f"[gate-3 DOMINATED] cell occupant has higher score")
+    else:
+        condition = f"[reject: {decision.reason}]"
+    log_decision(f"reject promote: {comp['id']} cell={cell} score={score:.3f} parent={parent_score:.3f}  {condition}")
     return decision, None

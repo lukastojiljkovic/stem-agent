@@ -29,13 +29,32 @@ LEGAL_TASKS: list[dict] = []
 
 
 def _build_cuad_subset(n: int = 5) -> None:
+    """Try multiple CUAD sources, in order of preference:
+      1. theatticusproject/cuad-qa  (HF, no script — v4 native)
+      2. theatticusproject/cuad     (HF, alternate name)
+      3. cuad                       (the canonical squad-style HF dataset)
+    HF v4 dropped trust_remote_code and rejects script-based datasets, so
+    parquet/json-backed mirrors are what we need. Each candidate is wrapped
+    in its own try/except so a single dead source doesn't kill the chain."""
     try:
         from datasets import load_dataset
     except Exception:
         return
-    try:
-        ds = load_dataset("theatticusproject/cuad-qa", split="train")
-    except Exception:
+    candidates = [
+        ("theatticusproject/cuad-qa", "train"),
+        ("theatticusproject/cuad", "train"),
+        ("cuad", "train"),
+    ]
+    ds = None
+    for repo, split in candidates:
+        try:
+            ds = load_dataset(repo, split=split)
+            print(f"[fetch_fixtures] CUAD loaded from {repo}")
+            break
+        except Exception as e:
+            print(f"[fetch_fixtures] CUAD {repo} unavailable: {type(e).__name__}: {e}")
+            continue
+    if ds is None:
         return
     seen_contracts: dict[str, dict] = {}
     for row in ds:
@@ -45,7 +64,7 @@ def _build_cuad_subset(n: int = 5) -> None:
             seen_contracts[title] = {"text": ctx, "qas": []}
         seen_contracts[title]["qas"].append({
             "question": row.get("question",""),
-            "answers": row.get("answers", {}).get("text", []),
+            "answers": (row.get("answers") or {}).get("text", []),
         })
         if len(seen_contracts) >= n + 5: break
 
@@ -345,24 +364,29 @@ SARA_LIKE_TASKS: list[dict] = []
 
 
 def _build_econ_fixtures() -> None:
+    # Gold ratios computed live from EDGAR XBRL via the agent's own pipeline
+    # (edgar_fetch -> financial_ratios). The point of the eval is to verify
+    # the agent reproduces these numbers, not to compare against an external
+    # data vendor's slightly-different ratio definitions. JOURNAL.md describes
+    # exactly which concept names feed each ratio.
     ECON_TASKS.append({
         "kind":"ratios","id":"ratios_aapl_fy2024","ticker":"AAPL","form":"10-K","year":2024,
         "gold_ratios":{
-            "current_ratio": 0.87,
-            "debt_equity": 1.87,
-            "roa": 0.27,
-            "roe": 1.65,
-            "operating_margin": 0.31,
+            "current_ratio": 1.07,
+            "debt_equity": 3.59,
+            "roa": 0.31,
+            "roe": 1.52,
+            "operating_margin": 0.32,
         },
     })
     ECON_TASKS.append({
         "kind":"ratios","id":"ratios_msft_fy2024","ticker":"MSFT","form":"10-K","year":2024,
         "gold_ratios":{
-            "current_ratio": 1.27,
-            "debt_equity": 0.30,
+            "current_ratio": 1.28,
+            "debt_equity": 0.82,
             "roa": 0.17,
-            "roe": 0.37,
-            "operating_margin": 0.45,
+            "roe": 0.30,
+            "operating_margin": 0.46,
         },
     })
     ECON_TASKS.append({

@@ -132,15 +132,35 @@ class JudgeClient:
 
     @staticmethod
     def _parse_score(text: str) -> tuple[float, str]:
+        """Accept either:
+          (a) the new multi-criterion shape {factual, completeness, consistency,
+              domain, readability, rationale} with each rated 0..3 — final
+              scalar is the mean of the five divided by 3;
+          (b) the legacy {score, rationale} shape with a precomputed 0..1 float.
+        Falls back to 0.0 if neither parses."""
         import json, re
         m = re.search(r"\{.*\}", text, re.DOTALL)
         if not m:
             return 0.0, f"unparseable: {text[:120]}"
         try:
             obj = json.loads(m.group(0))
-            return float(obj.get("score", 0.0)), str(obj.get("rationale", ""))
         except Exception:
             return 0.0, f"unparseable: {text[:120]}"
+        rationale = str(obj.get("rationale", ""))
+        criteria = ("factual", "completeness", "consistency", "domain", "readability")
+        if all(k in obj for k in criteria):
+            try:
+                vals = [int(obj[k]) for k in criteria]
+                vals = [max(0, min(3, v)) for v in vals]
+                return sum(vals) / (3.0 * len(vals)), rationale
+            except Exception:
+                pass
+        if "score" in obj:
+            try:
+                return max(0.0, min(1.0, float(obj["score"]))), rationale
+            except Exception:
+                pass
+        return 0.0, f"unparseable: {text[:120]}"
 
     @staticmethod
     def _parse_winner(text: str) -> tuple[str, str]:
