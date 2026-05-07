@@ -1,1 +1,92 @@
-[]
+[
+  {
+    "id": "comp_lega_legal_qa_e39f09",
+    "kind": "composite",
+    "domain": "legal",
+    "subdomain": null,
+    "capability_tag": "legal_qa",
+    "input_type": "Text",
+    "output_type": "Label",
+    "steps": [
+      {
+        "tool": "classify",
+        "params": {
+          "labels": [
+            "Yes",
+            "No"
+          ]
+        }
+      }
+    ],
+    "lineage_parent_ids": [],
+    "lineage_depth": 1,
+    "metrics_history": [
+      {
+        "score": 0.247,
+        "session": "20260507T113535_e39f09",
+        "ts": "2026-05-07T11:41:16.255959"
+      }
+    ],
+    "description": "Composite for legal_qa in legal",
+    "born_at_session": "20260507T113535_e39f09",
+    "version": 1
+  },
+  {
+    "id": "comp_lega_clause_e_e39f09",
+    "kind": "composite",
+    "domain": "legal",
+    "subdomain": "contract_analysis",
+    "capability_tag": "clause_extraction",
+    "input_type": "Text",
+    "output_type": "Text",
+    "steps": [
+      {
+        "tool": "summarize",
+        "params": {}
+      }
+    ],
+    "lineage_parent_ids": [],
+    "lineage_depth": 1,
+    "metrics_history": [
+      {
+        "score": 0.3604888517279822,
+        "session": "20260507T113535_e39f09",
+        "ts": "2026-05-07T12:15:41.403105"
+      }
+    ],
+    "description": "Composite for clause_extraction in legal",
+    "born_at_session": "20260507T113535_e39f09",
+    "version": 1
+  },
+  {
+    "id": "comp_econ_financia_1eb04c",
+    "kind": "composite",
+    "domain": "economics",
+    "subdomain": null,
+    "capability_tag": "financial_qa",
+    "input_type": "Query",
+    "output_type": "Filing",
+    "steps": [
+      {
+        "tool": "edgar_fetch",
+        "params": {
+          "ticker": "AAPL",
+          "form": "10K",
+          "year": 2024
+        }
+      }
+    ],
+    "lineage_parent_ids": [],
+    "lineage_depth": 1,
+    "metrics_history": [
+      {
+        "score": 0.24900000000000005,
+        "session": "20260507T122404_1eb04c",
+        "ts": "2026-05-07T12:32:09.196893"
+      }
+    ],
+    "description": "Composite for financial_qa in economics",
+    "born_at_session": "20260507T122404_1eb04c",
+    "version": 1
+  }
+]

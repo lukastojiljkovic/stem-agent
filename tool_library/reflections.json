@@ -11,6 +11,18 @@
       "session": "20260507T102318_cc5b05",
       "score": -0.33,
       "text": "Search on task family legal_qa produced no improvement (score -0.330); seed pipeline likely needed type-coercion fixes."
+    },
+    {
+      "ts": "2026-05-07T11:41:16.283644",
+      "session": "20260507T113535_e39f09",
+      "score": 0.247,
+      "text": "Promoted 'classify' for task family legal_qa with score 0.247. Use as starting point for similar tasks."
+    },
+    {
+      "ts": "2026-05-07T11:57:51.055154",
+      "session": "20260507T113535_e39f09",
+      "score": 0.19199999999999998,
+      "text": "Search converged on 'extract_search_query -> web_search' (score 0.192) but didn't beat existing cell occupant. Consider parametric variations next time."
     }
   ],
   "legal/clause_extraction": [
@@ -25,6 +37,18 @@
       "session": "20260507T102318_cc5b05",
       "score": 0.3823269329237071,
       "text": "Promoted 'summarize' for task family clause_extraction with score 0.382. Use as starting point for similar tasks."
+    },
+    {
+      "ts": "2026-05-07T12:06:09.519067",
+      "session": "20260507T113535_e39f09",
+      "score": 0.2930042735042735,
+      "text": "Promoted 'summarize' for task family clause_extraction with score 0.293. Use as starting point for similar tasks."
+    },
+    {
+      "ts": "2026-05-07T12:15:41.430432",
+      "session": "20260507T113535_e39f09",
+      "score": 0.3604888517279822,
+      "text": "Promoted 'summarize' for task family clause_extraction with score 0.360. Use as starting point for similar tasks."
     }
   ],
   "economics/financial_ratios": [
@@ -33,6 +57,12 @@
       "session": "20260507T105453_03114c",
       "score": 0.28099999999999997,
       "text": "Promoted 'edgar_fetch' for task family financial_ratios with score 0.281. Use as starting point for similar tasks."
+    },
+    {
+      "ts": "2026-05-07T12:27:41.532843",
+      "session": "20260507T122404_1eb04c",
+      "score": 0.7124999999999999,
+      "text": "Promoted 'edgar_fetch -> financial_ratios' for task family financial_ratios with score 0.712. Use as starting point for similar tasks."
     }
   ],
   "economics/financial_qa": [
@@ -41,6 +71,12 @@
       "session": "20260507T105453_03114c",
       "score": 0.2820298661174047,
       "text": "Promoted 'comp_econ_financia_03114c' for task family financial_qa with score 0.282. Use as starting point for similar tasks."
+    },
+    {
+      "ts": "2026-05-07T12:32:09.222527",
+      "session": "20260507T122404_1eb04c",
+      "score": 0.24900000000000005,
+      "text": "Promoted 'edgar_fetch' for task family financial_qa with score 0.249. Use as starting point for similar tasks."
     }
   ]
 }
