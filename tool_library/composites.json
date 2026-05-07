@@ -1,1 +1,90 @@
-[]
+[
+  {
+    "id": "comp_lega_legal_qa_cc5b05",
+    "kind": "composite",
+    "domain": "legal",
+    "subdomain": null,
+    "capability_tag": "legal_qa",
+    "input_type": "Text",
+    "output_type": "Label",
+    "steps": [
+      {
+        "tool": "classify",
+        "params": {
+          "labels": [
+            "Yes",
+            "No"
+          ]
+        }
+      }
+    ],
+    "lineage_parent_ids": [],
+    "lineage_depth": 1,
+    "metrics_history": [
+      {
+        "score": 0.747,
+        "session": "20260507T102318_cc5b05",
+        "ts": "2026-05-07T10:32:53.124390"
+      }
+    ],
+    "description": "Composite for legal_qa in legal",
+    "born_at_session": "20260507T102318_cc5b05",
+    "version": 1
+  },
+  {
+    "id": "comp_lega_clause_e_cc5b05",
+    "kind": "composite",
+    "domain": "legal",
+    "subdomain": "contract_analysis",
+    "capability_tag": "clause_extraction",
+    "input_type": "Text",
+    "output_type": "Text",
+    "steps": [
+      {
+        "tool": "summarize",
+        "params": {
+          "max_words": 200
+        }
+      }
+    ],
+    "lineage_parent_ids": [],
+    "lineage_depth": 1,
+    "metrics_history": [
+      {
+        "score": 0.3823269329237071,
+        "session": "20260507T102318_cc5b05",
+        "ts": "2026-05-07T10:45:53.142953"
+      }
+    ],
+    "description": "Composite for clause_extraction in legal",
+    "born_at_session": "20260507T102318_cc5b05",
+    "version": 1
+  },
+  {
+    "id": "comp_econ_financia_03114c",
+    "kind": "composite",
+    "domain": "economics",
+    "subdomain": null,
+    "capability_tag": "financial_qa",
+    "input_type": "Query",
+    "output_type": "Filing",
+    "steps": [
+      {
+        "tool": "comp_econ_financia_03114c",
+        "params": {}
+      }
+    ],
+    "lineage_parent_ids": [],
+    "lineage_depth": 1,
+    "metrics_history": [
+      {
+        "score": 0.2820298661174047,
+        "session": "20260507T105453_03114c",
+        "ts": "2026-05-07T11:04:59.891486"
+      }
+    ],
+    "description": "Composite for financial_qa in economics",
+    "born_at_session": "20260507T105453_03114c",
+    "version": 1
+  }
+]

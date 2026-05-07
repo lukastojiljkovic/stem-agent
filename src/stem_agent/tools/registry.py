@@ -81,24 +81,39 @@ class ToolLibrary:
         steps = comp.get("steps") or []
         if not steps:
             return
+        # Reject self-reference at registration time (prevents infinite recursion
+        # when the agent picks a composite as a step in itself).
+        if any(s.get("tool") == cid for s in steps):
+            return
         registry_self = self
 
         def _runner(**kwargs: Any) -> Any:
             from ..agent.pipeline import Pipeline, PipelineStep, execute as _execute
-            inner = Pipeline([PipelineStep(s["tool"], dict(s.get("params") or {}))
-                              for s in steps])
-            # The composite has one input. Pull it from whichever kwarg matches the
-            # most-likely accessor name; otherwise pass the first kwarg's value.
-            preferred = ["text", "query", "doc", "document", "documents",
-                         "time_series", "filing", "data", "output", "project"]
-            initial = None
-            for p in preferred:
-                if p in kwargs:
-                    initial = kwargs[p]; break
-            if initial is None and kwargs:
-                initial = next(iter(kwargs.values()))
-            res = _execute(inner, registry_self._tools, initial)
-            return res.final if res.success else None
+            # Hard depth cap on composite-of-composites recursion. Caps at 3
+            # nested composites, more than enough at the scale we operate.
+            import threading
+            tls = getattr(_runner, "_tls", None)
+            if tls is None:
+                tls = threading.local(); _runner._tls = tls  # type: ignore[attr-defined]
+            depth = getattr(tls, "depth", 0)
+            if depth >= 3:
+                return None
+            tls.depth = depth + 1
+            try:
+                inner = Pipeline([PipelineStep(s["tool"], dict(s.get("params") or {}))
+                                  for s in steps])
+                preferred = ["text", "query", "doc", "document", "documents",
+                             "time_series", "filing", "data", "output", "project"]
+                initial = None
+                for p in preferred:
+                    if p in kwargs:
+                        initial = kwargs[p]; break
+                if initial is None and kwargs:
+                    initial = next(iter(kwargs.values()))
+                res = _execute(inner, registry_self._tools, initial)
+                return res.final if res.success else None
+            finally:
+                tls.depth = depth
 
         wrapper = Tool(
             name=cid,

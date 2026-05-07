@@ -1,0 +1,46 @@
+{
+  "legal/legal_qa": [
+    {
+      "ts": "2026-05-07T10:32:53.152564",
+      "session": "20260507T102318_cc5b05",
+      "score": 0.747,
+      "text": "Promoted 'classify' for task family legal_qa with score 0.747. Use as starting point for similar tasks."
+    },
+    {
+      "ts": "2026-05-07T10:33:40.409517",
+      "session": "20260507T102318_cc5b05",
+      "score": -0.33,
+      "text": "Search on task family legal_qa produced no improvement (score -0.330); seed pipeline likely needed type-coercion fixes."
+    }
+  ],
+  "legal/clause_extraction": [
+    {
+      "ts": "2026-05-07T10:36:58.085867",
+      "session": "20260507T102318_cc5b05",
+      "score": 0.267,
+      "text": "Promoted 'clause_extraction' for task family clause_extraction with score 0.267. Use as starting point for similar tasks."
+    },
+    {
+      "ts": "2026-05-07T10:45:53.171155",
+      "session": "20260507T102318_cc5b05",
+      "score": 0.3823269329237071,
+      "text": "Promoted 'summarize' for task family clause_extraction with score 0.382. Use as starting point for similar tasks."
+    }
+  ],
+  "economics/financial_ratios": [
+    {
+      "ts": "2026-05-07T10:59:48.750751",
+      "session": "20260507T105453_03114c",
+      "score": 0.28099999999999997,
+      "text": "Promoted 'edgar_fetch' for task family financial_ratios with score 0.281. Use as starting point for similar tasks."
+    }
+  ],
+  "economics/financial_qa": [
+    {
+      "ts": "2026-05-07T11:04:59.917110",
+      "session": "20260507T105453_03114c",
+      "score": 0.2820298661174047,
+      "text": "Promoted 'comp_econ_financia_03114c' for task family financial_qa with score 0.282. Use as starting point for similar tasks."
+    }
+  ]
+}

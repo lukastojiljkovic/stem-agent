@@ -4,16 +4,16 @@ digraph Lineage {
   subgraph cluster_legal_legal_qa {
     label="legal / legal_qa";
     style=dashed;
-    "comp_lega_legal_qa_092073" [label="comp_lega_legal_qa_092073\nscore=0.25"];
+    "comp_lega_legal_qa_cc5b05" [label="comp_lega_legal_qa_cc5b05\nscore=0.75"];
   }
   subgraph cluster_legal_clause_extraction {
     label="legal / clause_extraction";
     style=dashed;
-    "comp_lega_clause_e_3eaa11" [label="comp_lega_clause_e_3eaa11\nscore=0.37"];
+    "comp_lega_clause_e_cc5b05" [label="comp_lega_clause_e_cc5b05\nscore=0.38"];
   }
   subgraph cluster_economics_financial_qa {
     label="economics / financial_qa";
     style=dashed;
-    "comp_econ_financia_ce0110" [label="comp_econ_financia_ce0110\nscore=0.26"];
+    "comp_econ_financia_03114c" [label="comp_econ_financia_03114c\nscore=0.28"];
   }
 }

@@ -716,5 +716,235 @@
       }
     },
     "cost": 0.01
+  },
+  {
+    "name": "latex_init",
+    "description": "Start a TexProject. Returns project dict with title/preamble/sections placeholder.",
+    "input_type": "Text",
+    "output_type": "TexProject",
+    "kind": "universal",
+    "domain": null,
+    "subdomain": null,
+    "capability_tag": null,
+    "parameters_schema": {
+      "title": {
+        "type": "str",
+        "required": true,
+        "default": null
+      },
+      "author": {
+        "type": "str",
+        "required": false,
+        "default": "Stem Agent"
+      },
+      "engine": {
+        "type": "str",
+        "required": false,
+        "default": "pdflatex"
+      },
+      "tex_dir": {
+        "type": "str | None",
+        "required": false,
+        "default": null
+      }
+    },
+    "cost": 0.05
+  },
+  {
+    "name": "latex_section",
+    "description": "Append a section (with markdown body) to the TexProject.",
+    "input_type": "TexProject",
+    "output_type": "TexProject",
+    "kind": "universal",
+    "domain": null,
+    "subdomain": null,
+    "capability_tag": null,
+    "parameters_schema": {
+      "project": {
+        "type": "dict[str, Any]",
+        "required": true,
+        "default": null
+      },
+      "name": {
+        "type": "str",
+        "required": true,
+        "default": null
+      },
+      "content_md": {
+        "type": "str",
+        "required": true,
+        "default": null
+      },
+      "level": {
+        "type": "str",
+        "required": false,
+        "default": "section"
+      }
+    },
+    "cost": 0.05
+  },
+  {
+    "name": "latex_table",
+    "description": "Append a table from a list of rows (first row = header). Uses booktabs.",
+    "input_type": "TexProject",
+    "output_type": "TexProject",
+    "kind": "universal",
+    "domain": null,
+    "subdomain": null,
+    "capability_tag": null,
+    "parameters_schema": {
+      "project": {
+        "type": "dict[str, Any]",
+        "required": true,
+        "default": null
+      },
+      "rows": {
+        "type": "list[list[str]]",
+        "required": true,
+        "default": null
+      },
+      "caption": {
+        "type": "str",
+        "required": false,
+        "default": ""
+      },
+      "label": {
+        "type": "str | None",
+        "required": false,
+        "default": null
+      },
+      "long": {
+        "type": "bool",
+        "required": false,
+        "default": false
+      }
+    },
+    "cost": 0.05
+  },
+  {
+    "name": "latex_chart",
+    "description": "Render a matplotlib chart to PDF and append \\includegraphics. data is dict by chart kind.",
+    "input_type": "TexProject",
+    "output_type": "TexProject",
+    "kind": "universal",
+    "domain": null,
+    "subdomain": null,
+    "capability_tag": null,
+    "parameters_schema": {
+      "project": {
+        "type": "dict[str, Any]",
+        "required": true,
+        "default": null
+      },
+      "data": {
+        "type": "dict[str, Any]",
+        "required": true,
+        "default": null
+      },
+      "kind": {
+        "type": "str",
+        "required": false,
+        "default": "bar"
+      },
+      "caption": {
+        "type": "str",
+        "required": false,
+        "default": ""
+      },
+      "out_dir": {
+        "type": "str",
+        "required": false,
+        "default": "report/figures"
+      }
+    },
+    "cost": 0.05
+  },
+  {
+    "name": "grammar_check",
+    "description": "Run grammar/style check on the TexProject's prose. Returns list of {message,offset,length,replacements}.",
+    "input_type": "TexProject",
+    "output_type": "IssuesList",
+    "kind": "universal",
+    "domain": null,
+    "subdomain": null,
+    "capability_tag": null,
+    "parameters_schema": {
+      "project": {
+        "type": "dict[str, Any]",
+        "required": true,
+        "default": null
+      }
+    },
+    "cost": 0.05
+  },
+  {
+    "name": "pdf_compile",
+    "description": "Compile a TexProject to PDF, archive the source .tex, clean aux files. Returns PDF path.",
+    "input_type": "TexProject",
+    "output_type": "PdfPath",
+    "kind": "universal",
+    "domain": null,
+    "subdomain": null,
+    "capability_tag": null,
+    "parameters_schema": {
+      "project": {
+        "type": "dict[str, Any]",
+        "required": true,
+        "default": null
+      },
+      "out_path": {
+        "type": "str",
+        "required": true,
+        "default": null
+      },
+      "archive_tex_dir": {
+        "type": "str | None",
+        "required": false,
+        "default": null
+      }
+    },
+    "cost": 0.05
+  },
+  {
+    "name": "report_finalize",
+    "description": "Build a TexProject from answer_md + optional metrics_table + figures, run grammar check, compile PDF.",
+    "input_type": "StructuredData",
+    "output_type": "PdfPath",
+    "kind": "universal",
+    "domain": null,
+    "subdomain": null,
+    "capability_tag": null,
+    "parameters_schema": {
+      "payload": {
+        "type": "dict[str, Any]",
+        "required": true,
+        "default": null
+      }
+    },
+    "cost": 0.05
+  },
+  {
+    "name": "comp_lega_legal_qa_cc5b05",
+    "description": "[composite] Composite for legal_qa in legal",
+    "input_type": "Text",
+    "output_type": "Label",
+    "kind": "composite",
+    "domain": "legal",
+    "subdomain": null,
+    "capability_tag": "legal_qa",
+    "parameters_schema": {},
+    "cost": 0.2
+  },
+  {
+    "name": "comp_lega_clause_e_cc5b05",
+    "description": "[composite] Composite for clause_extraction in legal",
+    "input_type": "Text",
+    "output_type": "Text",
+    "kind": "composite",
+    "domain": "legal",
+    "subdomain": "contract_analysis",
+    "capability_tag": "clause_extraction",
+    "parameters_schema": {},
+    "cost": 0.2
   }
 ]
