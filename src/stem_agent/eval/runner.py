@@ -12,6 +12,7 @@ from ..tools.archive import MAPElitesArchive
 from ..tools.lineage import write_dot
 from ..tools.registration import register_all
 from ..tools.registry import ToolLibrary
+from ..agent.reflections import ReflectionsStore
 from ..ui.console import log_decision, log_info, log_report
 from ..ui.events import session_log
 from ..agent.pipeline import Pipeline, PipelineStep, execute, validate
@@ -21,6 +22,35 @@ from .scorers import (
     score_clauses_f1, score_obligations_overlap,
     score_ratios_within_tolerance, score_qa_answer_match, score_classification_accuracy,
 )
+
+
+def _record_reflection(reflections: ReflectionsStore, task: TaskSpec,
+                       result: dict[str, Any], session_id: str) -> None:
+    """Distill one short lesson per phase task into the reflections store.
+    The lesson is a one-line summary the next session's prompt builder can read."""
+    if not result:
+        return
+    score = float(result.get("best_score") or 0.0)
+    promoted = bool(result.get("promoted"))
+    pipeline = result.get("best_pipeline") or {}
+    steps = pipeline.get("steps") or []
+    step_summary = " -> ".join(s.get("tool", "?") for s in steps) or "(empty)"
+    if promoted:
+        text = (f"Promoted '{step_summary}' for task family {task.capability_tag} "
+                f"with score {score:.3f}. Use as starting point for similar tasks.")
+    elif score > 0.0:
+        text = (f"Search converged on '{step_summary}' (score {score:.3f}) but didn't "
+                f"beat existing cell occupant. Consider parametric variations next time.")
+    else:
+        text = (f"Search on task family {task.capability_tag} produced no improvement "
+                f"(score {score:.3f}); seed pipeline likely needed type-coercion fixes.")
+    reflections.add(
+        domain=task.domain,
+        capability=task.capability_tag,
+        text=text,
+        score=score,
+        session=session_id,
+    )
 
 
 def _scorer_for(task: TaskSpec) -> Callable[[Any], float] | None:
@@ -82,9 +112,11 @@ def _load_tasks(domain: str, subdomain: str | None, track: str) -> list[TaskSpec
     from .legalbench import load_legalbench_tasks
     from .financebench import load_financebench_tasks
     from .edgar_eval import load_ratio_tasks
+    from .sara import load_sara_like_tasks
     tasks: list[TaskSpec] = []
     if domain == "legal":
         tasks += load_cuad_tasks()
+        tasks += load_sara_like_tasks()
         # LegalBench: now usable because the deterministic scorer
         # (score_classification_accuracy) is wired into the evolution fitness,
         # which steers the search toward producing yes/no labels rather than
@@ -126,6 +158,9 @@ def run_full(*, domain: str, subdomain: str | None, track: str, seed: int,
     # (or land in an empty cell) to be promoted.
     archive = MAPElitesArchive.from_composites(library.composites.values())
     log_info(f"archive seeded with {len(archive.cells())} occupied cell(s) from {len(library.composites)} prior composites")
+
+    reflections = ReflectionsStore(PATHS.tool_library / "reflections.json")
+    log_info(f"reflections loaded: {sum(len(v) for v in (reflections._data or {}).values())} total snippets across cells")
     lm = LMClient()
     judge = JudgeClient()
 
@@ -148,24 +183,28 @@ def run_full(*, domain: str, subdomain: str | None, track: str, seed: int,
     l1_layer = domain
     l1_train = [t for t in train if not (t.subdomain and track == "deep" and l1_layer == "legal")]
     for t in l1_train[:cap_per_phase]:
-        run_phase_for_task(
+        result = run_phase_for_task(
             task=t, library=library, archive=archive, lm=lm, judge=judge,
             layer=l1_layer, domain_brief_text=brief_text,
             session_id=session_id,
             deterministic_score=_scorer_for(t),
+            reflections=reflections,
         )
+        _record_reflection(reflections, t, result, session_id)
 
     if track == "deep" and domain == "legal" and (subdomain == "contract_analysis" or subdomain is None):
         log_decision("=== PHASE 2: L2 (contract_analysis) ===")
         l2_train = [x for x in train if x.subdomain == "contract_analysis"]
         for t in l2_train[:cap_per_phase]:
-            run_phase_for_task(
+            result = run_phase_for_task(
                 task=t, library=library, archive=archive, lm=lm, judge=judge,
                 layer="contract_analysis",
                 domain_brief_text=brief_text,
                 session_id=session_id,
                 deterministic_score=_scorer_for(t),
+                reflections=reflections,
             )
+            _record_reflection(reflections, t, result, session_id)
 
     log_decision("=== PHASE 3: frozen evaluation ===")
     metrics = {"baseline": [], "L1": [], "L2": []}
@@ -189,6 +228,7 @@ def run_full(*, domain: str, subdomain: str | None, track: str, seed: int,
 
     library.save()
     library.snapshot(session_id)
+    reflections.save()
     write_dot(library.composites.values(), PATHS.tool_library / "lineage.dot")
     (runs_dir / "metrics.json").write_text(json.dumps(metrics, indent=2), encoding="utf-8")
     log.emit("session.end", metrics_summary={k: _summary(v) for k, v in metrics.items()})

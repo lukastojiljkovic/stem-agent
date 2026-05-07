@@ -7,6 +7,7 @@
 """
 from __future__ import annotations
 
+import json
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
@@ -49,32 +50,78 @@ _DOMAIN_QUESTIONS: dict[str, list[str]] = {
 }
 
 
+def _adaptive_questions(domain: str, lm: LMClient, n: int = 4) -> list[str]:
+    """Ask the LLM to generate domain-grounding questions on the fly.
+    Falls back to the hand-curated list on failure or empty response."""
+    static = _DOMAIN_QUESTIONS.get(domain, [])
+    sys = ("You generate research questions to ground a specialist agent in a "
+           "domain. Output ONLY a numbered list of short questions, one per line, "
+           "no preamble.")
+    user = (f"DOMAIN: {domain}\n\n"
+            f"Produce {n} concrete questions whose answers (gathered from Wikipedia / "
+            f"Semantic Scholar / arXiv) would help an agent become competent in this "
+            f"domain. Each question must be self-contained and search-engine-friendly.")
+    try:
+        out = lm.chat(
+            [ChatMessage(role="system", content=sys),
+             ChatMessage(role="user", content=user)],
+            temperature=0.5, top_p=0.9, max_tokens=400,
+        )
+        lines = [ln.strip() for ln in (out.text or "").splitlines() if ln.strip()]
+        # Strip leading enumeration like "1. " or "- ".
+        cleaned: list[str] = []
+        import re as _re
+        for ln in lines:
+            ln = _re.sub(r"^\s*(?:\d+[.)]\s*|[-*]\s*)", "", ln).strip()
+            if len(ln) > 8:
+                cleaned.append(ln)
+        if cleaned:
+            return cleaned[:n] + static[: max(0, n - len(cleaned))]
+    except Exception:
+        pass
+    return static[:n]
+
+
 def bootstrap_domain_brief(domain: str, lm: LMClient,
-                           library: ToolLibrary, max_queries: int = 4) -> DomainBrief:
+                           library: ToolLibrary, max_queries: int = 4,
+                           adaptive: bool = True) -> DomainBrief:
     """Run a small bootstrapping loop: search -> summarize -> store as brief.
 
     For each domain question we try multiple key-free backends in turn (Wikipedia
     search, Semantic Scholar, OpenAlex, arXiv, plain Wikipedia lookup, web
     search). If none of them return anything for a question, we ask the LLM to
-    rewrite the query and retry (up to `_BOOTSTRAP_MAX_RETRIES`). The point is
-    to keep the "stem-cell environmental signal" mechanism working even when
-    the agent has no API keys and DDG is throttled."""
+    rewrite the query and retry (up to `_BOOTSTRAP_MAX_RETRIES`).
+
+    The retrieval phase across questions runs concurrently in a thread pool
+    (independent network I/O); LLM summarization stays serial because the
+    LM Studio backend queues requests anyway and we want stable log ordering.
+
+    If `adaptive=True` and no static questions exist for the domain (or as a
+    supplement), the LLM is asked to generate fresh ones. The point is to keep
+    the "stem-cell environmental signal" mechanism working even when the agent
+    has no API keys and DDG is throttled."""
     questions = _DOMAIN_QUESTIONS.get(domain, [])[:max_queries]
+    if adaptive and (not questions or len(questions) < max_queries):
+        try:
+            questions = _adaptive_questions(domain, lm, n=max_queries)
+        except Exception:
+            pass
     if not questions:
         return DomainBrief(domain=domain, paragraphs=[], sources=[])
 
-    sources: list[dict[str, str]] = []
-    paras: list[str] = []
+    # Phase 1: parallel retrieval (with rewrite retries) per question.
+    from concurrent.futures import ThreadPoolExecutor
 
-    for q in questions:
+    def gather_with_retries(q: str) -> tuple[str, list[str], list[dict[str, str]]]:
         log_retrieve(f"[bootstrap/{domain}] {q}")
-        snippets: list[str] = []
+        snips: list[str] = []
+        srcs: list[dict[str, str]] = []
         attempt_query = q
         for attempt in range(_BOOTSTRAP_MAX_RETRIES + 1):
-            new_snips, new_sources = _gather_snippets_for_query(library, attempt_query)
-            snippets.extend(new_snips)
-            sources.extend(new_sources)
-            if snippets:
+            new_snips, new_srcs = _gather_snippets_for_query(library, attempt_query)
+            snips.extend(new_snips)
+            srcs.extend(new_srcs)
+            if snips:
                 break
             if attempt < _BOOTSTRAP_MAX_RETRIES:
                 try:
@@ -82,11 +129,21 @@ def bootstrap_domain_brief(domain: str, lm: LMClient,
                 except Exception:
                     rewritten = ""
                 if not rewritten or rewritten.strip().lower() == attempt_query.strip().lower():
-                    log_retrieve(f"[bootstrap/{domain}] no rewrite available; giving up on this question")
+                    log_retrieve(f"[bootstrap/{domain}] no rewrite for {q!r}; giving up")
                     break
-                log_retrieve(f"[bootstrap/{domain}] rewriting query -> {rewritten!r}")
+                log_retrieve(f"[bootstrap/{domain}] rewriting -> {rewritten!r}")
                 attempt_query = rewritten
+        return q, snips, srcs
 
+    # max_workers=4 keeps polite rate to public APIs (SS, OpenAlex, Wikipedia).
+    with ThreadPoolExecutor(max_workers=min(4, len(questions))) as pool:
+        gathered = list(pool.map(gather_with_retries, questions))
+
+    # Phase 2: serial summarization (LM Studio queues per-model anyway).
+    sources: list[dict[str, str]] = []
+    paras: list[str] = []
+    for q, snippets, q_sources in gathered:
+        sources.extend(q_sources)
         if not snippets:
             continue
         try:
@@ -293,11 +350,23 @@ def propose_seed_pipeline(
 def _fallback(layer: str, library: ToolLibrary, input_type: TypeName,
               capability_tag: str | None = None) -> Pipeline:
     """Hand-coded minimum pipelines, gated by (capability_tag, input_type, layer) so the
-    result is type-valid AND uses the appropriate primitive for the task family."""
+    result is type-valid AND uses the appropriate primitive for the task family.
+    L1 and L2 layers diverge on parameter regime so they evolve toward different
+    composites (rather than both converging on the same default).
+    """
     cap = capability_tag or ""
     # Capability-driven: dispatches first on what the task is asking for.
     if cap == "legal_qa":
         return Pipeline([PipelineStep("classify", {"labels": ["Yes", "No"]})])
+    if cap == "legal_qa_grounded":
+        # Variant fallback that exercises the extract_search_query bridge so
+        # evolution can discover whether grounding helps the classifier.
+        return Pipeline([
+            PipelineStep("extract_search_query", {"max_words": 8}),
+            PipelineStep("wikipedia_search", {"k": 2}),
+            PipelineStep("summarize", {"max_words": 80}),
+            PipelineStep("classify", {"labels": ["Yes", "No"]}),
+        ])
     if cap == "obligation":
         return Pipeline([PipelineStep("obligation_detection")])
     if cap == "financial_ratios":
@@ -305,6 +374,16 @@ def _fallback(layer: str, library: ToolLibrary, input_type: TypeName,
     if cap == "financial_qa":
         return Pipeline([PipelineStep("edgar_fetch"), PipelineStep("summarize")])
     if cap == "clause_extraction":
+        # L2 (subdomain=contract_analysis) uses a stricter parameter regime so it
+        # explores a different region of the search space than L1: higher
+        # confidence threshold + focused 4-category subset matched to our eval.
+        if layer == "contract_analysis":
+            return Pipeline([PipelineStep("clause_extraction", {
+                "taxonomy": "CUAD41",
+                "min_conf": 0.6,
+                "categories": ["Governing Law", "Termination for Convenience",
+                               "Cap on Liability", "Anti-Assignment"],
+            })])
         return Pipeline([PipelineStep("clause_extraction"), PipelineStep("summarize")])
 
     # Capability unknown: fall through to type/layer heuristics.

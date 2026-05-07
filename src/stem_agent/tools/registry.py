@@ -61,6 +61,59 @@ class ToolLibrary:
         if not comp.get("embedding"):
             comp["embedding"] = _embed_text(comp.get("description") or comp.get("id", ""))
         self.composites[comp["id"]] = comp
+        # Also expose the composite as a callable Tool so evolution can compose
+        # composites with each other (composite-of-composites). The wrapper
+        # delegates to Pipeline.execute on the underlying typed steps.
+        try:
+            self._register_composite_as_tool(comp)
+        except Exception:
+            # Wrapper registration is best-effort; missing it doesn't break the run.
+            pass
+
+    def _register_composite_as_tool(self, comp: dict[str, Any]) -> None:
+        cid = comp["id"]
+        # Resolve types from string back to TypeName.
+        try:
+            in_t = TypeName(comp["input_type"])
+            out_t = TypeName(comp["output_type"])
+        except Exception:
+            return
+        steps = comp.get("steps") or []
+        if not steps:
+            return
+        registry_self = self
+
+        def _runner(**kwargs: Any) -> Any:
+            from ..agent.pipeline import Pipeline, PipelineStep, execute as _execute
+            inner = Pipeline([PipelineStep(s["tool"], dict(s.get("params") or {}))
+                              for s in steps])
+            # The composite has one input. Pull it from whichever kwarg matches the
+            # most-likely accessor name; otherwise pass the first kwarg's value.
+            preferred = ["text", "query", "doc", "document", "documents",
+                         "time_series", "filing", "data", "output", "project"]
+            initial = None
+            for p in preferred:
+                if p in kwargs:
+                    initial = kwargs[p]; break
+            if initial is None and kwargs:
+                initial = next(iter(kwargs.values()))
+            res = _execute(inner, registry_self._tools, initial)
+            return res.final if res.success else None
+
+        wrapper = Tool(
+            name=cid,
+            description=f"[composite] {comp.get('description') or cid}",
+            input_type=in_t,
+            output_type=out_t,
+            kind=ToolKind.COMPOSITE,
+            domain=comp.get("domain"),
+            subdomain=comp.get("subdomain"),
+            capability_tag=comp.get("capability_tag"),
+            cost=0.20,
+            function=_runner,
+        )
+        self._tools[cid] = wrapper
+        self._embeds[cid] = comp.get("embedding") or _embed_text(comp.get("description") or cid)
 
     def __contains__(self, name: str) -> bool:
         return name in self._tools or name in self.composites
@@ -112,19 +165,48 @@ class ToolLibrary:
     def primitives_meta_path(self) -> Path:
         return self.root / "primitives.json"
 
+    @property
+    def embeddings_path(self) -> Path:
+        return self.root / "embeddings.json"
+
     def save(self) -> None:
+        # Write composites without their inline 384-d embeddings so the
+        # composites.json file stays human-skimmable. Embeddings live alongside
+        # in a sidecar file keyed by composite id.
         primitives_meta = [t.to_dict() for t in self._tools.values() if t.kind == ToolKind.PRIMITIVE]
         self.primitives_meta_path.write_text(
             json.dumps(primitives_meta, indent=2, ensure_ascii=False), encoding="utf-8"
         )
+        slim_composites: list[dict[str, Any]] = []
+        embeddings: dict[str, list[float]] = {}
+        for c in self.composites.values():
+            slim = {k: v for k, v in c.items() if k != "embedding"}
+            slim_composites.append(slim)
+            emb = c.get("embedding")
+            if emb:
+                embeddings[c["id"]] = list(emb)
         self.composites_path.write_text(
-            json.dumps(list(self.composites.values()), indent=2, ensure_ascii=False), encoding="utf-8"
+            json.dumps(slim_composites, indent=2, ensure_ascii=False), encoding="utf-8"
+        )
+        self.embeddings_path.write_text(
+            json.dumps(embeddings, ensure_ascii=False), encoding="utf-8"
         )
 
     def load(self) -> None:
         if self.composites_path.exists():
             data = json.loads(self.composites_path.read_text(encoding="utf-8"))
-            self.composites = {c["id"]: c for c in data}
+            embeddings: dict[str, list[float]] = {}
+            if self.embeddings_path.exists():
+                try:
+                    embeddings = json.loads(self.embeddings_path.read_text(encoding="utf-8")) or {}
+                except Exception:
+                    embeddings = {}
+            self.composites = {}
+            for c in data:
+                if "embedding" not in c and c["id"] in embeddings:
+                    c["embedding"] = embeddings[c["id"]]
+                # Re-register composites (also sets up the composite-as-tool wrapper).
+                self.register_composite(c)
 
     def snapshot(self, session_id: str) -> Path:
         target = self.root / "archive" / session_id

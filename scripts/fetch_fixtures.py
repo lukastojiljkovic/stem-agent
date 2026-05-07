@@ -200,6 +200,136 @@ def _hand_legal_fixtures() -> None:
                 "Anti-Assignment":["may not be assigned by Reseller, by operation of law or otherwise, without the express prior written consent of Pi Software Inc."],
             },
         },
+        "synth_loan_11": {
+            "text": ("Term Loan Agreement, dated September 3, 2026, between Sigma Bank N.A. (Lender) and Tau Industries Inc. (Borrower). "
+                     "This Agreement shall be governed by and construed under the laws of the State of Illinois without regard to conflict-of-law principles. "
+                     "Borrower may prepay and terminate this Agreement at its convenience upon thirty (30) Business Days prior written notice to the Lender. "
+                     "The Lender's aggregate liability under or in connection with this Agreement shall not exceed two times (2x) the unpaid principal amount then outstanding. "
+                     "No party hereto may assign or delegate any of its rights or obligations under this Agreement without the prior written consent of the other party."),
+            "gold": {
+                "Governing Law":["governed by and construed under the laws of the State of Illinois"],
+                "Termination for Convenience":["prepay and terminate this Agreement at its convenience upon thirty (30) Business Days prior written notice"],
+                "Cap on Liability":["aggregate liability under or in connection with this Agreement shall not exceed two times (2x) the unpaid principal amount"],
+                "Anti-Assignment":["may not assign or delegate any of its rights or obligations under this Agreement without the prior written consent"],
+            },
+        },
+        "synth_lease_12": {
+            "text": ("Commercial Lease Agreement between Upsilon Properties (Landlord) and Phi Retail Group (Tenant), commencing October 1, 2026. "
+                     "This Lease shall be governed by the laws of the State of Florida. "
+                     "Tenant may terminate this Lease for convenience upon one hundred twenty (120) days prior written notice to Landlord at any time after the first anniversary of the commencement date. "
+                     "Landlord's aggregate liability to Tenant under this Lease shall not exceed twelve (12) months of the then-current base rent. "
+                     "Tenant shall not assign this Lease or sublet the Premises in whole or in part without the prior written consent of Landlord."),
+            "gold": {
+                "Governing Law":["governed by the laws of the State of Florida"],
+                "Termination for Convenience":["terminate this Lease for convenience upon one hundred twenty (120) days prior written notice"],
+                "Cap on Liability":["aggregate liability to Tenant under this Lease shall not exceed twelve (12) months of the then-current base rent"],
+                "Anti-Assignment":["shall not assign this Lease or sublet the Premises in whole or in part without the prior written consent"],
+            },
+        },
+        "synth_franchise_13": {
+            "text": ("Franchise Agreement between Chi Brands Worldwide LLC and Psi Franchisee Holdings, dated November 15, 2026. "
+                     "This Agreement is governed by the laws of the State of Georgia. "
+                     "Either party may terminate this Agreement at its convenience by giving the other party one hundred eighty (180) days advance written notice. "
+                     "Franchisor's total aggregate liability under this Agreement shall be capped at the cumulative franchise fees paid by Franchisee in the trailing twenty-four (24) months. "
+                     "Franchisee shall not assign or transfer any rights under this Agreement to any successor entity without Franchisor's prior written approval."),
+            "gold": {
+                "Governing Law":["governed by the laws of the State of Georgia"],
+                "Termination for Convenience":["terminate this Agreement at its convenience by giving the other party one hundred eighty (180) days advance written notice"],
+                "Cap on Liability":["total aggregate liability under this Agreement shall be capped at the cumulative franchise fees paid by Franchisee in the trailing twenty-four (24) months"],
+                "Anti-Assignment":["shall not assign or transfer any rights under this Agreement to any successor entity without Franchisor's prior written approval"],
+            },
+        },
+        "synth_research_14": {
+            "text": ("Sponsored Research Agreement between Omega University and Alpha BioPharma Corp., effective December 5, 2026. "
+                     "This Agreement and any disputes arising under it shall be governed by the laws of the Commonwealth of Pennsylvania. "
+                     "Sponsor may terminate this Agreement for convenience upon ninety (90) days written notice to the University. "
+                     "University's cumulative liability arising out of or related to this Agreement shall in no event exceed the total funding received from Sponsor under this Agreement. "
+                     "This Agreement may not be assigned by either party without the prior written consent of the other, except to a successor entity in the case of merger or acquisition."),
+            "gold": {
+                "Governing Law":["governed by the laws of the Commonwealth of Pennsylvania"],
+                "Termination for Convenience":["terminate this Agreement for convenience upon ninety (90) days written notice"],
+                "Cap on Liability":["cumulative liability arising out of or related to this Agreement shall in no event exceed the total funding received from Sponsor"],
+                "Anti-Assignment":["may not be assigned by either party without the prior written consent of the other"],
+            },
+        },
+        "synth_advertising_15": {
+            "text": ("Advertising Services Agreement between Beta Media Group and Gamma Brands LLC, effective January 20, 2027. "
+                     "This Agreement shall be governed exclusively by the laws of the State of New York, USA. "
+                     "Client may terminate this Agreement for convenience at any time upon forty-five (45) days prior written notice to Agency. "
+                     "Agency's total liability under this Agreement shall not exceed three (3) months of the most recent monthly retainer fees paid by Client. "
+                     "Neither party may assign or transfer this Agreement, in whole or in part, without the prior written consent of the other party, which consent shall not be unreasonably withheld."),
+            "gold": {
+                "Governing Law":["governed exclusively by the laws of the State of New York"],
+                "Termination for Convenience":["terminate this Agreement for convenience at any time upon forty-five (45) days prior written notice"],
+                "Cap on Liability":["total liability under this Agreement shall not exceed three (3) months of the most recent monthly retainer fees"],
+                "Anti-Assignment":["may not assign or transfer this Agreement, in whole or in part, without the prior written consent of the other party"],
+            },
+        },
+        "synth_construction_16": {
+            "text": ("Construction Services Agreement between Delta Builders Inc. (Contractor) and Epsilon Developments Ltd. (Owner), dated February 14, 2027. "
+                     "This Agreement is to be governed and interpreted under the laws of the Province of Quebec, Canada. "
+                     "Owner may terminate this Agreement for convenience by providing Contractor with seventy-five (75) calendar days advance written notice. "
+                     "Contractor's aggregate liability under this Agreement shall under no circumstances exceed the total contract value as set forth in Schedule A. "
+                     "This Agreement may not be assigned, transferred, or pledged by Contractor without the express prior written consent of Owner."),
+            "gold": {
+                "Governing Law":["governed and interpreted under the laws of the Province of Quebec, Canada"],
+                "Termination for Convenience":["terminate this Agreement for convenience by providing Contractor with seventy-five (75) calendar days advance written notice"],
+                "Cap on Liability":["aggregate liability under this Agreement shall under no circumstances exceed the total contract value"],
+                "Anti-Assignment":["may not be assigned, transferred, or pledged by Contractor without the express prior written consent"],
+            },
+        },
+        "synth_outsourcing_17": {
+            "text": ("Business Process Outsourcing Agreement between Zeta Global Services and Eta Corporate Holdings, executed March 1, 2027. "
+                     "This Agreement and the parties' performance hereunder shall be governed by the laws of England and Wales. "
+                     "Customer may terminate this Agreement for convenience by giving Provider one hundred (100) days prior written notice without cause. "
+                     "Provider's maximum aggregate liability under or in relation to this Agreement shall not exceed one hundred fifty percent (150%) of the fees paid in the preceding twelve months. "
+                     "Neither party may assign this Agreement nor any rights or obligations arising under it without the prior written consent of the other, save to an Affiliate."),
+            "gold": {
+                "Governing Law":["governed by the laws of England and Wales"],
+                "Termination for Convenience":["terminate this Agreement for convenience by giving Provider one hundred (100) days prior written notice without cause"],
+                "Cap on Liability":["maximum aggregate liability under or in relation to this Agreement shall not exceed one hundred fifty percent (150%) of the fees paid in the preceding twelve months"],
+                "Anti-Assignment":["may not assign this Agreement nor any rights or obligations arising under it without the prior written consent"],
+            },
+        },
+        "synth_maintenance_18": {
+            "text": ("Equipment Maintenance Agreement between Theta Industrial Services and Iota Manufacturing Corp., effective April 10, 2027. "
+                     "This Agreement is governed by the laws of the State of Michigan, USA. "
+                     "Customer may terminate this Agreement for convenience upon thirty (30) days written notice to Service Provider, with no early termination fees. "
+                     "Service Provider's liability hereunder shall in no event exceed the annual maintenance fees actually paid by Customer in the preceding contract year. "
+                     "This Agreement and any rights or duties hereunder may not be assigned by either party without the other party's prior written consent."),
+            "gold": {
+                "Governing Law":["governed by the laws of the State of Michigan"],
+                "Termination for Convenience":["terminate this Agreement for convenience upon thirty (30) days written notice"],
+                "Cap on Liability":["liability hereunder shall in no event exceed the annual maintenance fees actually paid by Customer in the preceding contract year"],
+                "Anti-Assignment":["may not be assigned by either party without the other party's prior written consent"],
+            },
+        },
+        "synth_data_processing_19": {
+            "text": ("Data Processing Agreement between Kappa Cloud Solutions (Processor) and Lambda Health Network (Controller), effective May 5, 2027. "
+                     "This DPA shall be governed by the laws of the Republic of Ireland and the General Data Protection Regulation (GDPR) where applicable. "
+                     "Either party may terminate this DPA for convenience upon sixty (60) days prior written notice provided the underlying main services agreement permits. "
+                     "Processor's aggregate liability arising out of this DPA shall not exceed two times (2x) the annual fees paid by Controller under the main services agreement. "
+                     "Processor may not assign this DPA, in whole or in part, including by operation of law, without Controller's prior written consent."),
+            "gold": {
+                "Governing Law":["governed by the laws of the Republic of Ireland"],
+                "Termination for Convenience":["terminate this DPA for convenience upon sixty (60) days prior written notice"],
+                "Cap on Liability":["aggregate liability arising out of this DPA shall not exceed two times (2x) the annual fees paid by Controller"],
+                "Anti-Assignment":["may not assign this DPA, in whole or in part, including by operation of law, without Controller's prior written consent"],
+            },
+        },
+        "synth_managed_services_20": {
+            "text": ("Managed Services Agreement between Mu IT Services Ltd. (MSP) and Nu Banking Group (Client), commencing June 1, 2027. "
+                     "This Agreement and the legal relationship hereunder shall be governed by the laws of the Federal Republic of Germany. "
+                     "Client may terminate this Agreement for convenience upon ninety (90) calendar days advance written notice to MSP at any time after the initial twelve-month term. "
+                     "MSP's total cumulative liability under this Agreement shall not exceed one hundred percent (100%) of the fees paid by Client during the most recent six-month rolling period. "
+                     "MSP shall not assign this Agreement or any rights hereunder, including by way of merger, change of control, or operation of law, without Client's prior written consent."),
+            "gold": {
+                "Governing Law":["governed by the laws of the Federal Republic of Germany"],
+                "Termination for Convenience":["terminate this Agreement for convenience upon ninety (90) calendar days advance written notice"],
+                "Cap on Liability":["total cumulative liability under this Agreement shall not exceed one hundred percent (100%) of the fees paid by Client during the most recent six-month rolling period"],
+                "Anti-Assignment":["shall not assign this Agreement or any rights hereunder, including by way of merger, change of control, or operation of law, without Client's prior written consent"],
+            },
+        },
     }
     for cid, data in contracts.items():
         (FIX / "contracts" / f"{cid}.txt").write_text(data["text"], encoding="utf-8")
@@ -211,6 +341,7 @@ def _hand_legal_fixtures() -> None:
 
 
 ECON_TASKS: list[dict] = []
+SARA_LIKE_TASKS: list[dict] = []
 
 
 def _build_econ_fixtures() -> None:
@@ -246,6 +377,38 @@ def _build_econ_fixtures() -> None:
     })
 
 
+def _build_sara_style_fixtures() -> None:
+    """SARA-style statutory-reasoning items with clean Yes/No labels.
+    These exercise the legal_qa capability with a cleaner gold-label set than
+    LegalBench (whose loader had empty-label items that polluted scoring)."""
+    SARA_LIKE_TASKS.extend([
+        {"kind":"sara_like","id":"sara_estate_residence_01",
+         "question":"Statute: A taxpayer may deduct property taxes paid on a primary residence if and only if the taxpayer was the legal owner during the taxable year. Fact: Alex paid property taxes on a house owned by his sister Brenda; Alex never held title. Did Alex deduct lawfully?",
+         "gold_answer":"No"},
+        {"kind":"sara_like","id":"sara_capital_gains_02",
+         "question":"Statute: Long-term capital gains apply only to assets held more than one year. Fact: Carla bought stock on January 5, 2024 and sold it on December 31, 2024. Are her gains long-term?",
+         "gold_answer":"No"},
+        {"kind":"sara_like","id":"sara_dependent_03",
+         "question":"Statute: A child qualifies as a dependent only if the child has gross income below $5,050 in the taxable year. Fact: David's daughter earned $4,200 from a part-time job and had no other income. Is she a qualifying dependent under this provision?",
+         "gold_answer":"Yes"},
+        {"kind":"sara_like","id":"sara_charitable_04",
+         "question":"Statute: Charitable contributions exceeding 50% of adjusted gross income are not deductible in the current year. Fact: Eva had AGI of $100,000 and donated $40,000 to a qualifying charity. Is the full $40,000 deductible this year?",
+         "gold_answer":"Yes"},
+        {"kind":"sara_like","id":"sara_business_meal_05",
+         "question":"Statute: Business meal deductions are limited to 50% of the actual expense. Fact: Frank spent $200 on a client dinner. May he deduct $200?",
+         "gold_answer":"No"},
+        {"kind":"sara_like","id":"sara_rental_06",
+         "question":"Statute: Rental income is taxable in the year received. Fact: Greta received a $3,600 prepayment in December 2026 covering January through December 2027. Must she report this in 2026?",
+         "gold_answer":"Yes"},
+        {"kind":"sara_like","id":"sara_marriage_07",
+         "question":"Statute: A taxpayer may file as married filing jointly only if married on the last day of the taxable year. Fact: Hank married on January 2, 2027. May he file jointly for tax year 2026?",
+         "gold_answer":"No"},
+        {"kind":"sara_like","id":"sara_self_employ_08",
+         "question":"Statute: Self-employment tax applies when net earnings from self-employment are $400 or more. Fact: Iris had net self-employment earnings of $390 for the year. Does she owe self-employment tax?",
+         "gold_answer":"No"},
+    ])
+
+
 def _slug(s: str) -> str:
     return re.sub(r"[^a-zA-Z0-9]+","_", s)[:48].strip("_").lower() or "x"
 
@@ -257,6 +420,10 @@ def main() -> int:
         print("CUAD HF dataset unavailable; using hand-coded synthetic fixtures.")
         _hand_legal_fixtures()
     _build_econ_fixtures()
+    _build_sara_style_fixtures()
+    # Append SARA-like (statutory reasoning, Yes/No gold) to the legal task list
+    # so they're loaded by the legal eval pipeline alongside CUAD.
+    LEGAL_TASKS.extend(SARA_LIKE_TASKS)
     (FIX / "tasks_legal.jsonl").write_text(
         "\n".join(json.dumps(x, ensure_ascii=False) for x in LEGAL_TASKS) + "\n",
         encoding="utf-8",
@@ -265,7 +432,8 @@ def main() -> int:
         "\n".join(json.dumps(x, ensure_ascii=False) for x in ECON_TASKS) + "\n",
         encoding="utf-8",
     )
-    print(f"legal tasks: {len(LEGAL_TASKS)}; econ tasks: {len(ECON_TASKS)}")
+    print(f"legal tasks: {len(LEGAL_TASKS)} ({len(LEGAL_TASKS) - len(SARA_LIKE_TASKS)} CUAD + {len(SARA_LIKE_TASKS)} SARA-like); "
+          f"econ tasks: {len(ECON_TASKS)}")
     return 0
 
 

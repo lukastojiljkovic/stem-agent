@@ -118,13 +118,23 @@ def run_phase_for_task(
     deterministic_score: Callable[[Any], float] | None = None,
     parent_score: float = 0.0,
     parent_ids: list[str] | None = None,
+    reflections: Any = None,
 ) -> dict[str, Any]:
     log_info(f"=== Phase[{layer}] task={task.name} ===")
+    # Pull recent reflections for this cell into the seed-prompt context.
+    composites_blurb = _composites_summary(library, task.domain)
+    if reflections is not None:
+        try:
+            r_blurb = reflections.render_for_prompt(task.domain, task.capability_tag)
+            if r_blurb:
+                composites_blurb = composites_blurb + "\n\n" + r_blurb
+        except Exception:
+            pass
     seed = propose_seed_pipeline(
         task_question=task.question, task_input_type=task.input_type,
         library=library, lm=lm, domain=task.domain,
         domain_brief=domain_brief_text,
-        composites_summary=_composites_summary(library, task.domain),
+        composites_summary=composites_blurb,
         layer=layer,
         capability_tag=task.capability_tag,
     )

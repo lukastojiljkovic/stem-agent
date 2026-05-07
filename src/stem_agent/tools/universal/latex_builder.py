@@ -53,7 +53,11 @@ _PDFLATEX_PREAMBLE = r"""
     kind=ToolKind.UNIVERSAL,
 )
 def latex_init(title: str, author: str = "Stem Agent",
-               engine: str = "pdflatex") -> dict[str, Any]:
+               engine: str = "pdflatex",
+               tex_dir: str | None = None) -> dict[str, Any]:
+    """Start a TexProject. ``tex_dir`` is the directory the .tex file will be
+    written to; downstream tools (latex_chart) use it to compute portable
+    relative include paths instead of leaking absolute system paths."""
     log_report(f"latex_init engine={engine} title={title!r}")
     project: dict[str, Any] = {
         "engine": engine,
@@ -63,6 +67,7 @@ def latex_init(title: str, author: str = "Stem Agent",
         "sections": [],
         "figures": [],
         "table_count": 0,
+        "tex_dir": tex_dir,
     }
     return project
 
@@ -189,9 +194,23 @@ def latex_chart(project: dict[str, Any], data: dict[str, Any],
             ax.text(0.5, 0.5, f"unknown chart kind: {kind}", ha="center")
         ax.set_title(data.get("title","") or caption)
         fig.tight_layout(); fig.savefig(path); plt.close(fig)
+        # Resolve a portable include path: if a tex_dir is set on the project,
+        # store the figure path *relative to* the .tex file's directory so the
+        # generated .tex never contains absolute system paths (privacy + portability).
+        tex_dir = project.get("tex_dir")
+        try:
+            include_path = (
+                Path(path).resolve().relative_to(Path(tex_dir).resolve()).as_posix()
+                if tex_dir else Path(path).as_posix()
+            )
+        except ValueError:
+            # Path isn't under tex_dir; use just the bare filename rather than leak
+            # an absolute path. The caller is responsible for ensuring figures end
+            # up alongside the .tex when tex_dir isn't a parent of out_dir.
+            include_path = Path(path).name
         project["figures"].append((str(path), caption))
         block = [r"\begin{figure}[h]", r"\centering",
-                 r"\includegraphics[width=0.85\linewidth]{" + str(path).replace("\\","/") + r"}",
+                 r"\includegraphics[width=0.85\linewidth]{" + include_path + r"}",
                  r"\caption{" + _escape(caption) + r"}", r"\end{figure}"]
         project["sections"].append({"level":"raw","name":"","body":"\n".join(block)})
     except Exception as e:

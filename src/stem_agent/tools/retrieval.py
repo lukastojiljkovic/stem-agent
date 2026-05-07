@@ -21,6 +21,7 @@ SS, OpenAlex, web} -> Documents -> summarize.
 """
 from __future__ import annotations
 
+import html
 import os
 from typing import Any
 
@@ -197,6 +198,31 @@ def fred_query(series_id: str, observation_start: str | None = None,
     return out
 
 
+_XBRL_CONCEPT_ALIASES: dict[str, list[str]] = {
+    # Different filers report the same fact under slightly different XBRL concept
+    # names; we try the most-specific names first then fall back to broader ones.
+    "revenue": ["Revenues", "RevenueFromContractWithCustomerExcludingAssessedTax",
+                "SalesRevenueNet"],
+    "net_income": ["NetIncomeLoss", "ProfitLoss"],
+    "total_assets": ["Assets"],
+    "current_assets": ["AssetsCurrent"],
+    "current_liabilities": ["LiabilitiesCurrent"],
+    "total_liabilities": ["Liabilities", "LiabilitiesAndStockholdersEquity"],
+    "stockholders_equity": ["StockholdersEquity",
+                            "StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest"],
+    "operating_income": ["OperatingIncomeLoss"],
+    "cash_from_ops": ["NetCashProvidedByUsedInOperatingActivities"],
+}
+
+
+def _try_concept_chain(financials, names: list[str]) -> float | None:
+    for name in names:
+        v = _try_value(financials, name)
+        if v is not None:
+            return v
+    return None
+
+
 @tool(
     name="edgar_fetch",
     description="Fetch a SEC filing by ticker+form+year. Returns {ticker, form, accession, text, xbrl_facts}.",
@@ -216,7 +242,10 @@ def edgar_fetch(ticker: str, form: str = "10-K", year: int | None = None) -> dic
     out: dict[str, Any] = {"ticker": ticker, "form": form, "accession": "", "text": "", "xbrl_facts": {}}
     try:
         from edgar import set_identity, Company
-        set_identity(os.environ.get("EDGAR_USER_AGENT", "Stem Agent stemagent@example.com"))
+        # SEC requires a contact User-Agent. The default email is example.com,
+        # which SEC accepts (RFC 2606 reserved); users with heavy use should set
+        # EDGAR_USER_AGENT to their real contact info.
+        set_identity(os.environ.get("EDGAR_USER_AGENT", "Stem Agent contact@example.com"))
         c = Company(ticker)
         filings = c.get_filings(form=form)
         if year:
@@ -234,19 +263,12 @@ def edgar_fetch(ticker: str, form: str = "10-K", year: int | None = None) -> dic
             out["text"] = ""
         try:
             obj = f.obj()
-            if hasattr(obj, "financials") and obj.financials is not None:
-                fin = obj.financials
-                out["xbrl_facts"] = {
-                    "revenue": _try_value(fin, "Revenues"),
-                    "net_income": _try_value(fin, "NetIncomeLoss"),
-                    "total_assets": _try_value(fin, "Assets"),
-                    "current_assets": _try_value(fin, "AssetsCurrent"),
-                    "current_liabilities": _try_value(fin, "LiabilitiesCurrent"),
-                    "total_liabilities": _try_value(fin, "Liabilities"),
-                    "stockholders_equity": _try_value(fin, "StockholdersEquity"),
-                    "operating_income": _try_value(fin, "OperatingIncomeLoss"),
-                    "cash_from_ops": _try_value(fin, "NetCashProvidedByUsedInOperatingActivities"),
-                }
+            fin = getattr(obj, "financials", None) if obj is not None else None
+            if fin is not None:
+                facts: dict[str, float | None] = {}
+                for label, names in _XBRL_CONCEPT_ALIASES.items():
+                    facts[label] = _try_concept_chain(fin, names)
+                out["xbrl_facts"] = facts
         except Exception as e:
             log_warn(f"EDGAR XBRL extraction failed: {e}")
     except Exception as e:
@@ -385,7 +407,10 @@ def wikipedia_search(query: str, k: int = 5, lang: str = "en") -> list[dict[str,
             data = r.json().get("query", {}).get("search", [])
             for item in data[:k]:
                 title = item.get("title", "")
-                snippet = (item.get("snippet") or "").replace('<span class="searchmatch">', "").replace("</span>", "")
+                raw_snip = (item.get("snippet") or "").replace('<span class="searchmatch">', "").replace("</span>", "")
+                # Wikipedia search snippets contain HTML entities (&quot;, &amp;, ...)
+                # and occasional inline tags; decode + strip residue.
+                snippet = html.unescape(raw_snip)
                 out.append({
                     "title": title,
                     "url": f"https://{lang}.wikipedia.org/wiki/{title.replace(' ', '_')}",

@@ -27,6 +27,7 @@ from .pdf import pdf_compile
     kind=ToolKind.UNIVERSAL,
 )
 def report_finalize(payload: dict[str, Any]) -> str:
+    from pathlib import Path
     title = payload.get("title", "Stem Agent — Answer")
     body_md = payload.get("answer_md", "")
     metrics = payload.get("metrics_table") or []
@@ -34,7 +35,9 @@ def report_finalize(payload: dict[str, Any]) -> str:
     out_path = payload.get("out_path") or "runs/_unfiled/agent_answer.pdf"
     archive_dir = payload.get("archive_tex_dir")
 
-    p = latex_init(title)
+    # The .tex file will sit next to the .pdf (pdf_compile uses with_suffix(".tex")).
+    tex_dir = str(Path(out_path).resolve().parent)
+    p = latex_init(title, tex_dir=tex_dir)
     p = latex_section(p, "Answer", body_md, level="section")
     if metrics:
         p = latex_table(p, metrics, caption="Metrics", long=False)

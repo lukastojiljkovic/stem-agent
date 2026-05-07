@@ -17,13 +17,20 @@ The framing is biological: stem cells read environmental signals, then commit to
 
 ### Prerequisites
 
-- Python 3.12+
+- **Python 3.12 or newer** (`pyproject.toml` enforces `requires-python = ">=3.12"`; the install will fail on 3.11 or earlier with a clear error). On Windows we recommend Windows Terminal + PowerShell 7 for proper Rich console rendering.
 - [LM Studio](https://lmstudio.ai/) with **Gemma 4 E4B** (Q4_K_M GGUF) loaded; server running on `http://localhost:1234`.
-- A LaTeX install (MiKTeX on Windows, TeX Live on Linux/macOS).
-- Optional: Java (for offline grammar check via LanguageTool); Graphviz `dot` (for lineage PNG); Streamlit (for the optional dashboard).
-- Optional API keys (any subset; system degrades gracefully):
-  `FRED_API_KEY`, `TAVILY_API_KEY`, `COURTLISTENER_TOKEN`, `EDGAR_USER_AGENT`,
-  `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`.
+- A LaTeX install (MiKTeX on Windows, TeX Live on Linux/macOS) for `pdf_compile`.
+- **Optional helpers** (system runs without them):
+  - Java runtime — enables the offline LanguageTool grammar checker (otherwise the public API is used).
+  - Graphviz `dot` — turns `tool_library/lineage.dot` into a PNG.
+  - `pip install -e ".[dashboard]"` — adds Streamlit for the optional read-only dashboard.
+- **Optional API keys** (any subset; the system has key-free fallbacks for every retrieval and judge path):
+  - `TAVILY_API_KEY` — Tavily web search; without it `web_search` falls back to DDG (rate-limited). Wikipedia / Semantic Scholar / OpenAlex / arXiv all work *without* a key.
+  - `FRED_API_KEY` — FRED macroeconomic time series.
+  - `COURTLISTENER_TOKEN` — US case-law search.
+  - `EDGAR_USER_AGENT` — SEC requires a "Name email" string for filings; default is `Stem Agent contact@example.com` which SEC accepts. Set to your real contact for high-volume use.
+  - `ANTHROPIC_API_KEY` — promotes Claude Haiku 4.5 to the final-eval pairwise judge (used for credibility numbers in the write-up).
+  - `OPENAI_API_KEY` — fallback judge if no Anthropic key.
 
 ### Install
 
